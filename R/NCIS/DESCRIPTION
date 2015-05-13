@@ -1,0 +1,13 @@
+Package: NCIS
+Type: Package
+Title: Normalization between ChIP and control samples
+Version: 1.0.1
+Date: 2012-06-11
+Author: Kun Liang
+Maintainer: Kun Liang <kliang@stat.wisc.edu>
+Suggests: ShortRead
+Description: Estimates normalizing factor between a ChIP sample and a control/input sample
+License: GPL (>= 2)
+LazyLoad: yes
+Packaged: 2012-06-15 22:09:15 UTC; kliang
+Depends: R (>= 2.10)

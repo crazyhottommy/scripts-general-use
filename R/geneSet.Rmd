@@ -1,0 +1,75 @@
+---
+title: "Gene_set_enrichment"
+author: "Ming Tang"
+date: "April 30, 2015"
+output: html_document
+---
+
+### get some data
+```{r}
+library(GEOquery)
+
+g<- getGEO("GSE34313")
+e<- g[[1]]
+```
+
+```{r}
+e$condition<- e$characteristics_ch1.2
+
+levels(e$condition)<- c("dex24", "dex4", "control")
+table(e$condition)
+```
+
+```{r}
+## e already normalized
+boxplot(exprs(e), range=0)
+names(fData(e))
+lvls<- c("control", "dex4")
+
+es<- e[, e$condition %in% lvls]
+es$condition<- factor(es$condition, levels=lvls)      
+```
+
+```{r}
+library(limma)
+design<- model.matrix(~ es$condition)
+fit<- lmFit(es, design=design)
+fit<- eBayes(fit)
+tt<- topTable(fit, coef=2, genelist=fData(es)$GENE_SYMBOL)
+head(tt)
+
+```
+
+```{r}
+idx<- grep("GO:0006955", fData(es)$GO_ID)
+length(idx)
+
+r1<- roast(es, idx, design)
+?roast
+r1
+```
+
+```{r}
+library(org.Hs.eg.db)
+org.Hs.egGO2EG
+go2eg<- as.list(org.Hs.egGO2EG)
+head(go2eg)
+
+```
+
+```{r}
+go_vector<- unlist(go2eg)
+golengths<- sapply(go2eg, length)
+head(fData(es)$GENE)
+idxvector<- match(go_vector, fData(es)$GENE)
+table(is.na(idxvector))
+idx<- split(idxvector, rep(names(go2eg), golengths))
+go2eg[[1]]
+
+fData(es)$GENE[idx[[1]]]
+```
+
+```{r}
+?mroast
+```
+

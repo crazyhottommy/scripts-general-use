@@ -1,0 +1,512 @@
+---
+title: "GRanges demo"
+author: "Ming Tang"
+date: "April 23, 2015"
+output: html_document
+---
+
+```{r}
+library(devtools)
+install_github("genomicsclass/ERBS")
+install_github("genomicsclass/ph525x")
+library(ph525x)
+library(BiocInstaller)
+biocVersion()
+```
+
+### ChIP-seq dataset 
+```{r}
+library(ERBS)
+data(HepG2)
+HepG2
+class(HepG2)
+## how many Geomic ranges there?
+length(HepG2)
+
+## get the metadata for the ranges
+values(HepG2)
+
+## same as above, but prefered 
+mcols(HepG2)
+median(mcols(HepG2)$signalValue)
+
+# strongest signal
+HepG2[order(HepG2$signalValue, decreasing = T), ]
+
+# how many regions from chr16
+chr<- seqnames(HepG2)
+as.character(chr)
+table(chr)
+
+```
+
+```{r}
+#Rle is a more efficient way to store consecutive  data
+HepG2[chr=="chr20",]
+x<- HepG2[order(HepG2),]
+x
+seqnames(x)
+as.character(x)
+```
+
+length of the GRanges
+
+```{r}
+width(HepG2)
+
+hist(width(HepG2))
+median(width(HepG2))
+
+data(HepG2)
+data(GM12878)
+browseVignettes("GenomicRanges")
+
+# find the overlap of HepG2 and GM12878
+?findOverlaps
+
+res<- findOverlaps(HepG2, GM12878)
+# res is a Hit object with two columns
+# access columns by using queryHits and subjectHits functions
+res
+subjectHits(res)
+idx<- queryHits(res)
+erbs<- HepG2[idx,]
+
+erbs<- granges(erbs)
+erbs
+
+## it is the same as 
+erbs2<- intersect(HepG2, GM12878) ## not working?
+
+
+?distanceToNearest
+HepG2[17,]
+GM12878[(subjectHits(distanceToNearest(HepG2[17,], GM12878))),]
+
+# distance between these two closest Granges
+distance(HepG2[17,],GM12878[(subjectHits(distanceToNearest(HepG2[17,], GM12878))),])
+# 2284, it is the same as the third column of the result of distanceToNearest function
+
+distanceToNearest(HepG2, GM12878)
+sum(mcols(distanceToNearest(HepG2, GM12878))$distance < 2000)/303
+
+library(Homo.sapiens)
+ghs<- genes(Homo.sapiens)
+ghs
+
+genome(ghs)
+seqnames(ghs)
+seqinfo(ghs)
+## how many genes on each chromosome
+table(seqnames(ghs))
+
+hist(width(ghs))
+median(width(ghs))
+?precede
+?follow
+?nearest
+?distance
+
+index<- precede(erbs, ghs)
+ghs[index[1:3]]
+erbs[1:3]
+
+distance(erbs, ghs[index])
+
+## resize function resize the genes with width 1, it is aware of the strand
+# returns all the tss for all the genes
+tssgr<- resize( ghs, 1)
+
+?distanceToNearest
+
+# nearest distance to tss for all binding sites
+d<- distanceToNearest(erbs, tssgr)
+d
+queryHits(d)
+subjectHits(d)
+
+dists<- values(d)$distance
+
+## distance to tss smaller than 1000
+index<- subjectHits(d)[dists < 1000]
+?select
+
+tssgr[index,]
+keys<- as.character(values(tssgr[index])$GENEID)
+res<- select(Homo.sapiens, keys = keys, columns=c("SYMBOL", "GENENAME"),keytype="GENEID")
+res[1:2,]
+
+## find the closest tss to the fourth binding site in erbs
+distanceToNearest(erbs[4,], tssgr)
+tssgr[subjectHits(distanceToNearest(erbs[4,], tssgr))]
+select(Homo.sapiens, keys = "2101", columns=c("SYMBOL", "GENENAME"),keytype="GENEID")
+
+## tss that overlap with the binding sites in HepG2
+kp<- ghs[resize(ghs,1) %over% HepG2]
+
+nn<- names(kp)
+m<-  select(Homo.sapiens, keys=nn, keytype="ENTREZID",columns=c("SYMBOL", "GENENAME", "TERM", "GO"))
+library(ReportingTools)
+hrep<- HTMLReport(shortName="erhep.html")
+publish(m, hrep)
+finish(hrep)
+```
+
+
+### get the DNA sequences from the peak file
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg19)
+Hsapiens
+class(Hsapiens)
+# DNA sequence for chr17
+chr17<- Hsapiens$chr17
+chr17
+
+?getseq
+
+showMethods("getSeq")
+
+## get sequences for each binding site in HepG2
+hepseq<- getSeq(Hsapiens, HepG2)
+hepseq
+length(HepG2)
+width(HepG2)[1:5]
+
+## shift sequences for comparision
+rhepseq<- getSeq(Hsapiens, shift(HepG2, 2500))
+rhepseq
+
+mot<- "TCAAGGTCA"
+## look at motifDB package to represent motifs in probability matrix
+# http://bioconductor.org/packages/release/bioc/html/MotifDb.html
+
+?vmatchPatter
+
+vcountPattern(mot, hepseq)
+
+## use FIMO, MEME for real data.
+
+sum(vcountPattern(mot, hepseq))
+
+##reverse complement 
+sum(vcountPattern(mot, reverseComplement(hepseq)))
+
+
+#compare with the negative controls
+sum(vcountPattern(mot, rhepseq))
+sum(vcountPattern(mot, reverseComplement(rhepseq)))
+
+
+## GC content for all the binding sites
+
+erbseq<- getSeq(Hsapiens, erbs)
+erbseq
+
+# A/T/C/G freuency 
+alphabetFrequency(x= erbseq, as.prob=T)
+
+# only for C/G
+letterFrequency(x=erbseq, letters=c("C","G"), as.prob=T)
+class(letterFrequency(x=erbseq, letters=c("C","G"), as.prob=T))
+apply( letterFrequency(x=erbseq, letters=c("C","G"), as.prob=T), 1, sum)
+
+median(apply( letterFrequency(x=erbseq, letters=c("C","G"), as.prob=T), 1, sum))
+
+## controls for erbs
+rerbseq<- getSeq(Hsapiens, shift(erbs, 10000))
+median(apply( letterFrequency(x=rerbseq, letters=c("C","G"), as.prob=T), 1, sum))
+```
+
+
+## bigwig file
+```{r}
+library(rtracklayer)
+# this next line takes a few minutes to run
+# this bigwig file is big 319Mb
+h2bw<- import("wgEncodeSydhTfbsHepg2ErraForsklnStdSig.bigWig")
+h2bw  #GRanges object
+
+median(width(h2bw))
+library(ERBS) 
+data(HepG2)
+fo<- findOverlaps(h2bw, HepG2)
+inpeak<- queryHits(fo)
+inpeak
+h2bw[inpeak,]
+
+median(h2bw[inpeak,]$score)
+
+mcols(h2bw[inpeak,])
+
+#Find the location of gene with the SYMBOL 'ESRRA' in hg19 (hint: 'CHRLOC' column in Homo.sapiens), and the narrowPeak # range that includes it in HepG2. Obtain the scores from h2bw that lie in this peak. What is the maximum score in this # peak region?
+library(Homo.sapiens)
+keytypes(Homo.sapiens)
+keys(Homo.sapiens, keytype="SYMBOL")[1:10]
+
+columns(Homo.sapiens)
+select(Homo.sapiens, key="ESRRA", keytype="SYMBOL", columns=c("ENTREZID", "CHRLOC"))
+
+ESRRA_gr<- GRanges("chr11", IRanges(start=64073044, end=64073044))
+fo<- findOverlaps(HepG2, ESRRA_gr)
+HepG2[queryHits(fo),]
+
+HepG2 %over% ESRRA_gr
+HepG2[HepG2 %over% ESRRA_gr]
+
+fo<- findOverlaps(h2bw, HepG2[HepG2 %over% ESRRA_gr])
+
+## the coverage of peak that overlaps with the ESRRA gene 
+h2bw[queryHits(fo),]
+max(h2bw[queryHits(fo),]$score)
+# 202.1
+peakcov<- h2bw[queryHits(fo),]
+peakcov
+
+peakcov[peakcov$score==max(peakcov$score),]
+
+```
+
+
+### read in data using rtracklayer
+
+```{r}
+f<- dir(system.file("extdata", package="ERBS"), full=TRUE)
+f1<-f[1]
+readLines(f1,4)
+cat(readLines(f1,4), sep="\n")
+library(rtracklayer)
+imp<- import(f1, format="bedGraph")
+# now imp is a GRanges object 
+imp 
+metadata(imp)<- list("celltype" ="Immortalized B cell")
+genome(imp)<- "hg19"
+
+# export it to a bed file.
+export(imp, "demoex.bed")
+
+```
+
+create Granges object from a fly
+```{r}
+library(rtracklayer)
+data(targets)
+class(targets) # it is a dataframe
+head(targets)
+# Let's creat a Granges object from it
+library(GenomicRanges)
+mtar<- with(targets,GRanges(chrom, IRanges(start,end), strand=strand,targets=target, mirname=name))
+mtar
+
+cat(export(mtar[1:5], format="bed"), sep="\n")
+
+```
+
+
+### visualization of GRanges
+```{r}
+library(ERBS)
+data(HepG2)
+HepG2
+library(GenomeInfoDb)
+seqlevels(HepG2, force=TRUE)<- paste0("chr", 1:22)
+HepG2
+
+library(ggbio)
+autoplot(HepG2, layout="karyogram")
+
+
+data(GM12878)
+seqlevels(GM12878, force=TRUE) <- paste0("chr", 1:22)
+autoplot(GM12878, layout="karyogram", aes(colour=log2(signalValue)))
+
+
+
+HepG2$cell<- "HepG2"
+GM12878$cell<-  "Bcell"
+tot<-  c(GM12878, HepG2)
+tot$peak10<- tot$peak/10 # copes with automatic scale of y axis
+seqlevels(tot, force=TRUE)<-  paste0("chr", 1:22)
+library(ggbio)
+library(scales)
+p<- autoplot(seqinfo(tot))
+p<- p + layout_karyogram(tot, aes(fill=cell, colour=cell), geom="rect") +
+    scale_colour_manual(values = alpha(c("green", "red"), .1)) +
+    scale_fill_manual(values = alpha(c("green", "red"), .1))
+p + layout_karyogram(tot, aes(x=start, y=peak10), ylim=c(15,30),
+    geom="point", color="blue", size=.8)
+```
+
+### One chromosome is distinguished in this visualization by exhibiting a unusually dense set of binding events. Perform the following computations after computing tot 
+
+```{r}
+stot<- split(tot, as.character(seqnames(tot)))
+w<- sapply(stot, function(x) sum(width(x)))
+sort(w/seqlengths(tot)[names(w)])
+```
+
+```{r}
+
+juxta = function (chrname="chr22", ...) 
+{
+    require(ERBS)
+    data(HepG2)
+    data(GM12878)
+    require(ggbio)
+    require(GenomicRanges)  # "subset" is overused, need import detail
+    ap1 = autoplot(GenomicRanges::subset(HepG2, seqnames==chrname))
+    ap2 = autoplot(GenomicRanges::subset(GM12878, seqnames==chrname))
+    tracks(HepG2 = ap1, Bcell = ap2, ...)
+}
+
+## after loading the function
+
+package.skeleton("erbsViz", "juxta")
+
+juxta("chr22", main="ESRRA binding on chr22")
+
+install.packages("erbsViz", repos=NULL, type="source")
+library(erbsViz)
+?juxta
+jdemo<- juxta()
+class(jdemo)
+
+getSlots(getClass(class(jdemo)))
+```
+
+```{r}
+library(GO.db)
+keytypes(GO.db)
+columns(GO.db)
+getClass(class(GO.db))
+
+con<- GO.db$conn
+con
+
+
+library(DBI)
+library(RSQLite)
+dbListTables(con)
+
+## query of the table
+
+dbGetQuery(con, "select * from go_term limit 5")
+
+
+library(microbenchmark)
+m1 = microbenchmark(
+ dbGetQuery(GO.db$conn, "select term from go_term"), times=10L, unit="ms")
+m2 = microbenchmark(
+ keys(GO.db, keytype="TERM"), times=10L, unit="ms")
+```
+
+
+Could a region of DNA be a binding site for a regulatory protein and also be transcribed to mRNA? Use ERBS package GM12878 ranges as a ScanBamParam for reading alignments from the hnRNP C RNA-seq study.
+
+```{r}
+biocLite("RNAseqData.HNRNPC.bam.chr14")
+library(RNAseqData.HNRNPC.bam.chr14)
+library(GenomicAlignments)
+library(ERBS)
+data(GM12878)
+seqlevels(GM12878, force=TRUE) = "chr14"
+library(Rsamtools)
+parm = ScanBamParam(which=GM12878)
+tab = summarizeOverlaps( GM12878, RNAseqData.HNRNPC.bam.chr14_BAMFILES,
+    param=parm) 
+
+```
+
+
+
+
+
+
+```{r}
+library(IRanges)
+
+```
+
+```{r}
+ir<- IRanges(5,10)
+ir
+start(ir)
+end(ir)
+width(ir)
+range(ir)
+shift(ir, -2)
+narrow(ir, start=2)
+narrow(ir, end=5)
+flank(ir, width=3, start=TRUE, both=FALSE)
+flank(ir, width=3, start=FALSE, both=FALSE)
+flank(ir, width=3, start=TRUE, both=TRUE)
+ir * 2  ## zoom in, gives a range with half the width
+ir * -2 ## zoom out, gives a range with double the width
+ir + 2
+ir - 2
+resize(ir, width=2, fix="center")
+
+```
+
+### IRanges calculation 
+```{r}
+ir<- IRanges(start=c(3,5,17), end=c(10,8,20))
+ir
+start(ir)
+end(ir)
+width(ir)
+range(ir)
+reduce(ir)
+gaps(ir)
+disjoin(ir)
+```
+
+### Genomic Ranges calculation
+
+```{r}
+library(GenomicRanges)
+
+countOverlaps(gr1,gr2)
+
+fo<- findOverlaps(gr1,gr2)
+queryHits(fo)
+subjectHits(fo)
+
+## give a logical vector gr1 that overlaps gr2 or not
+gr1 %over% gr2
+
+gr1[gr1 %over% gr2]
+
+```
+
+
+Rle and Views
+```{r}
+r<- Rle(c(1,1,1,0,0,0,-2,-2,-2, rep(1,20)))
+r
+str(r)
+as.numeric(r)
+Views(r, start=c(4,2), end=c(7,6))
+```
+
+```{r}
+library(ph525x)
+x<- GRanges("chr1", IRanges(c(101,201,401,501),c(150,250,450,550)), strand="+")
+y<- GRanges("chr1", IRanges(c(101,221,301,401,541),c(150,250,350,470,550)), strand="+")
+
+# define a new function
+plotGRanges<- function(x) plotRanges(ranges(x))
+par(mfrow=c(2,1))
+plotGRanges(x)
+plotGRanges(y)
+## concatenate two GRanges together
+c(x,y)
+
+idx<- disjoin(c(x,y)) %over% x & disjoin(c(x,y)) %over% y
+width(disjoin(c(x,y))[idx])
+
+idx1<- (disjoin(c(x,y)) %over% x) & !(disjoin(c(x,y)) %over% y)
+idx2<- (disjoin(c(x,y)) %over% y) & !(disjoin(c(x,y)) %over% x)
+width(disjoin(c(x,y))[idx1])
+width(disjoin(c(x,y))[idx2])
+```
+

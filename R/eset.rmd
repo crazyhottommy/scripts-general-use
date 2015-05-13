@@ -1,0 +1,269 @@
+---
+title: "ExpressionSet and SummarizedExperiment"
+author: "Ming Tang"
+date: "April 24, 2015"
+output: html_document
+---
+
+### microarray gene expression
+```{r}
+library(devtools)
+install_github("genomicsclass/tissuesGeneExpression")
+library(tissuesGeneExpression)
+data(tissuesGeneExpression)
+head(e[,1:5])
+table(tissue)
+
+d<- dist(t(e))
+hc<- hclust(d)
+# the column names of e match the tissue names
+plot(hc, cex=0.5, label=tissue)
+
+abline(h=120)
+cl<- cutree(hc, h=120)
+table(true=tissue, cluster=cl)
+
+as.numeric(e[rownames(e)== "209169_at",])
+probe<- data.frame(value=as.numeric(e[rownames(e)== "209169_at",]), tissue=tissue)
+ggplot(probe) + geom_boxplot(aes(x=tissue,y=value))
+
+IDs<- c("201884_at", "209169_at", "206269_at", "207437_at", "219832_s_at", "212827_at")
+
+probes<- as.data.frame(t(e[rownames(e) %in% IDs,]))
+probes<- mutate(probes, tissue=tissue)
+colnames(probes)<- c("A","B","C","D","E","F", "tissue")
+par(mfrow=c(1,1))
+ggplot(probes) + geom_boxplot(aes(x=tissue, y=B))
+
+```
+
+### Another gene expression
+
+In the ExpressionSet object we assure this connection is established by forcing the rownames of the assayData(exprs(eset)) to match the rownames of featureData and the rownames of phenoData to match the colnames of assayData
+
+```{r}
+library(Biobase)
+data(sample.ExpressionSet)
+sample.ExpressionSet
+samp<- sample.ExpressionSet
+
+# Note that you can access the information about the samples with:
+pData(samp)
+featureData(samp)
+## no gene annotation in the featureData slot
+
+annotation(samp)
+# "hgu95av2"
+## there is a database pacckage hgu95av2.db that contains the probes and genenames information
+## one can add that into the featureData(samp) and look up by fData(samp)
+
+featureNames(samp)[1:10]
+fData(samp)
+
+annotation(samp)
+
+colnames(exprs(samp))
+paste(colnames(exprs(samp)), rownames(pData(samp)), sep=".")
+# match each other
+head(exprs(samp))
+
+Females<- rownames(pData(samp)[pData(samp)$sex=="Female",])
+# expression values for only females 
+head(exprs(samp)[, colnames(exprs(samp)) %in% Females])
+
+experimentData(samp)
+annotation(samp) 
+
+cor(exprs(samp)[rownames(exprs(samp)) == "31489_at",], pData(samp)$score)
+```
+
+### Summarized Experiment
+RNAseq experiment summarized by counts
+```{r}
+biocLite("parathyroidSE")
+library(parathyroidSE)
+data(parathyroidGenesSE)
+se<- parathyroidGenesSE
+se
+
+dim(se)
+##count table
+assay(se)[1:3,1:3]
+dim(assay(se))
+
+colData(se)[1:3,1:6]
+dim(colData(se))
+
+names(colData(se))
+colData(se)$treatment
+
+rowData(se)[1]
+rowData(se)[[1]]
+class(rowData(se))
+
+length(rowData(se))
+head(rownames(se))
+metadata(rowData(se))
+
+exptData(se)$MIAME
+abstract(exptData(se)$MIAME)
+```
+
+```{r}
+library(devtools)
+# install_github("genomicsclass/GSE5859Subset")
+library(GSE5859Subset)
+data(GSE5859Subset)
+dim(geneExpression)
+dim(sampleInfo)
+dim(geneAnnotation)
+
+### creat the phenotype dataframe
+rownames(sampleInfo)<- colnames(geneExpression)
+pd<- AnnotatedDataFrame(sampleInfo)
+pd
+
+pData(pd)["GSM136530.CEL.gz","date"]
+varLabels(pd)
+
+## featureNames dataframe
+rownames(geneAnnotation)<- rownames(geneExpression)
+fd<- AnnotatedDataFrame(geneAnnotation)
+pData(fd)["204810_s_at","CHR"]
+
+## creat the expressionSet object
+eset<- ExpressionSet(geneExpression, pd, fd)
+eset
+pData(eset)
+featureData(eset)
+fData(eset)
+
+ind1<- which( featureData(eset)$CHR=="chrY" )
+ind2 =  pData(eset)$group==1
+femaleY = colMeans(exprs(eset)[ind1, ind2]) 
+maleY = colMeans(exprs(eset)[ind1, !ind2]) 
+boxplot(maleY,femaleY)
+median(maleY)-median(femaleY)
+
+```
+
+
+```{r}
+library(rafalib)
+library(affy)
+biocLite("SpikeIn")
+biocLite("SpikeInSubset")
+
+library(SpikeIn)
+library(SpikeInSubset)
+library(hgu133atagcdf)
+data(package="SpikeInSubset")
+
+data(SpikeIn133)
+head(pData( SpikeIn133) )
+
+##Spike in probe set names
+colnames(pData( SpikeIn133 ) )
+
+pData(SpikeIn133) [ ,"203508_at"]
+
+
+library(SpikeInSubset)
+data(mas133)
+e=exprs(mas133)##get expression
+A=(log2(e[,4])+log2(e[,1]))/2
+M=log2(e[,4]/e[,1])
+
+##find the genes that were spiked in to have 
+##fold changes of 2
+siNames=colnames(pData(mas133))
+siNames=siNames[pData(mas133)[4,]/pData(mas133)[1,]==2]
+spikeinIndex=match(siNames,rownames(e))
+
+mypar2(1,1)
+splot(A,M,ylim=c(-4,4),cex=0.5)
+abline(h=c(-1,1),col=1,lwd=2,lty=2)
+points(A[spikeinIndex],M[spikeinIndex],bg=2,pch=21)
+
+
+data(SpikeIn133)
+pd=pData(SpikeIn133)[1:14,] ##pick the first 14, rest are reps
+pns=probeNames(SpikeIn133)  ## probe set names for each probe
+featurenames<- featureNames(SpikeIn133)
+length(pns)
+length(unique(pns))
+length(featurenames)  ## this is the same as length(unique(pns))
+
+# there are roughly 11 probes for each probe set
+
+pms=pm(SpikeIn133)[,1:14] ##pick the first 14, rest are reps
+ind=which(pns==colnames(pd)[1]) ##probes in gene 1
+concentration=pd[,1]
+concentration[concentration==0]= 1/16
+mypar2(1,1)
+matplot(log2(concentration),t(log2(pms[ind,])),xlab="log (base 2) concentration",ylab="log (base 2) instensity")
+
+
+pd=pData(SpikeIn133) ## use all the replicates
+pms=pm(SpikeIn133) ## use all the replicates
+j = which(colnames(pd)=="203508_at")
+concentration=pd[,j]
+which(concentration==0)
+ind=which(pns==colnames(pd)[1])
+pms[ind, which(concentration==0)]
+
+min(pms[ind, which(concentration==0)])
+
+
+## The MM (mismatch) probes are designed to capture these values:
+## PM (perfect match). for each gene, in order to subtract the background, the manufacture
+## include both PM and MM probes for the same gene
+
+mms = mm(SpikeIn133) ## use all the replicates
+ind=which(pns==colnames(pd)[1])  # gene 203508_at
+
+## MM values for gene 203508_at where concentration is 0
+mms[ind, which(concentration==0)]
+
+cor(log2(as.vector(mms[ind, which(concentration==0)])), log2(as.vector(pms[ind, which(concentration==0)])))
+```
+
+Normalizaton
+
+```{r}
+#In the rest of this assessment we will use the spikeIn experiment again. Note that these arrays are considered replicates except for the spiked-in genes (the only ones that should be changing).
+
+library(genefilter)
+library(SpikeIn)
+data(SpikeIn95)
+siNames=colnames(pData(SpikeIn95))
+spikeinIndex=which(probeNames(SpikeIn95)%in%siNames)
+#The spiked-in probes should change from array to array with the exception of the last eight arrays:
+
+pData(SpikeIn95)[52:59,]
+#So, for the purpose of this assessment, we will remove the arrays in which we have repeated spike-in concentrations:
+
+arrayIndex = c(1:51,52,56)
+pm = pm(SpikeIn95)[,arrayIndex]
+#We can see the need for normalization by looking at boxplots:
+
+boxplot(log2( pm ),range=0)
+# Make sure to use the matrix pm as defined above for the next two questions.
+
+#Compute the across sample log (base 2) scale SD for each probe in pm.
+
+#What is the median SD for the non-spiked in genes (use the index spikeinIndex to exclude spike-ins)?
+
+pm[-spikeinIndex,]
+median(rowSds(log2(pm[-spikeinIndex,])))
+median(rowSds(log2(pm[spikeinIndex,])))
+
+## quantile normalization
+library(preprocessCore)
+library(magrittr)  # for %>% pipelining  , when dplyr is loaded, magrittr is loaded
+normalize.quantiles(log2(pm))[-spikeinIndex,] %>% rowSds() %>% median()
+normalize.quantiles(log2(pm))[spikeinIndex,] %>% rowSds() %>% median()
+
+##after quantile normalization, bigger difference is preserved, the smaller difference is shrinked.
+
+```

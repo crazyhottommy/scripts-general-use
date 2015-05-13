@@ -1,0 +1,256 @@
+---
+title: "Annotations"
+author: "Ming Tang"
+date: "April 24, 2015"
+output: html_document
+---
+
+### DNA sequences for human geomes 
+```{r}
+source("http://bioconductor.org/biocLite.R")
+
+### DNA sequences for the genome
+biocLite("BSgenome.Hsapiens.UCSC.hg19")
+library(BSgenome.Hsapiens.UCSC.hg19)
+BSgenome.Hsapiens.UCSC.hg19
+# or
+Hsapiens
+head(genome(Hsapiens))
+# We can access chromosome 11 like this:
+chr11seq <- BSgenome.Hsapiens.UCSC.hg19[["chr11"]]
+
+#or
+
+Hsapiens$chr11
+
+# Here, for example, is a segment of 25 bases starting  at base 1 million 
+subseq(chr11seq,start=10^6,width=25)
+
+## how many ATG in the chr11?
+countPattern("ATG", chr11seq)
+countPattern("TGA", chr11seq)
+countPattern("TAA", chr11seq)
+countPattern("TAG", chr11seq)
+
+chr7seq <- BSgenome.Hsapiens.UCSC.hg19[["chr7"]]
+alphabetFrequency(chr7seq, as.prob=T)
+
+##masked region
+# biocLite("BSgenome.Hsapiens.UCSC.hg19.masked")
+library(BSgenome.Hsapiens.UCSC.hg19.masked)
+c17m<- BSgenome.Hsapiens.UCSC.hg19.masked$chr17
+class(c17m)
+c17m
+c22m<-BSgenome.Hsapiens.UCSC.hg19.masked$chr22
+c22m
+```
+
+### other genomes
+```{r}
+library(Biostrings)
+available.genomes()
+grep( "zebrafish", available.genomes())
+
+```
+
+### liftover genome versions
+download the chain file “ftp://hgdownload.cse.ucsc.edu/goldenPath/hg38/liftOver/hg38ToHg19.over.chain.gz”
+put it in your home directory
+
+```{r}
+download.file("http://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz",
+  "hg19ToHg38.over.chain.gz")
+library(R.utils)
+gunzip("hg19ToHg38.over.chain.gz")
+library(rtracklayer)
+ch<- import.chain("hg19ToHg38.over.chain")
+ch
+str(ch[[1]])
+
+?liftOver
+nHepG2<- unlist(liftOver(HepG2, ch))
+
+```
+
+### Gene structures
+```{r}
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+Txdb<- TxDb.Hsapiens.UCSC.hg19.knownGene
+Txdb
+genome(Txdb)
+exbg<- exonsBy(Txdb, by="gene")
+exbg
+```
+
+### visualize gene structures
+```{r}
+# biocLite("Gviz")
+library(devtools)
+# install_github("genomicsclass/ph525x")
+library(ph525x)
+modPlot("ESR1", useGeneSym=FALSE, collapse=FALSE)
+
+## what's the GENEID for ESR1
+library(Homo.sapiens)
+select(Homo.sapiens, keys = "ESR1", columns=c("GENEID", "GENENAME"),keytype="SYMBOL")
+
+## how many transcripts for ESR1 gene?
+transcriptsBy(Txdb, by="gene")
+transcriptsBy(Txdb, by="gene")$"2099"
+
+length(transcriptsBy(Homo.sapiens, by="gene")$"2099")
+```
+
+### gene annotations for the human genome Homo.sapiens database
+```{r}
+biocLite("Homo.sapiens")
+library(Homo.sapiens)
+class(Homo.sapiens)
+
+getClass("OrganismDb")
+Homo.sapiens@keys
+
+##   xDbs           yDbs                                xKeys      yKeys   
+#[1,] "GO.db"        "org.Hs.eg.db"                      "GOID"     "GO"    
+#[2,] "org.Hs.eg.db" "TxDb.Hsapiens.UCSC.hg19.knownGene" "ENTREZID" "GENEID"
+## we see Homo.sapiens includes org.Hs.eg.db and the gene model database
+# TxDb.Hsapiens.UCSC.hg19.knownGene which we can use explicitly from 
+# its own database.
+
+
+
+# possible key types
+keytypes(Homo.sapiens)
+
+#There are also columns in the database, not all of which are keys. To list all the columns:
+columns(Homo.sapiens)
+
+## keys in a keytype
+head(keys(Homo.sapiens, keytype="ENTREZID"))
+
+# how many unique ERNTREZID?
+length(unique(keys(Homo.sapiens, keytype="ENTREZID")))
+
+# how many ensemble id?
+length(unique(keys(Homo.sapiens, keytype="ENSEMBL")))
+
+# all the genes for hg19 with GENEID in the metadata column
+genes(Homo.sapiens)
+
+# use select command to look up
+select(Homo.sapiens, key="123", keytype="ENTREZID", columns=c("SYMBOL", "ENSEMBL", "ENTREZID", "CHR"))
+select(Homo.sapiens, key="9575", keytype="ENTREZID", columns=c("SYMBOL", "ENSEMBL", "ENTREZID", "CHR"))
+
+##We can list genes associated with certain biological processes or molecular functions if we know 
+#the right vocabulary. One such vocabulary is the "Gene Ontology", often shortened "GO". 
+#One term of interest in GO is "circadian rhythm". We use the following command to enumerate 
+#genes by Entrez ID annotated to this process:
+
+tab<- select(Homo.sapiens, key="circadian rhythm", keytype="TERM", columns=c("ENTREZID"))
+```
+
+### annotation from AnnoationHub
+see [link]https://www.youtube.com/watch?v=pFvUOPfR8eA&feature=youtu.be
+http://www.bioconductor.org/packages/release/bioc/html/AnnotationHub.html
+```{r}
+biocLite("AnnotationHub")
+library(AnnotationHub)
+ah<- AnnotationHub()
+
+unique(ah$dataprovider)
+head(unique(ah$species))
+
+ah
+
+##show in a web
+d <- display(ah)
+
+query(ah, "HepG2")
+query(ah, "ChainFile")
+
+hubCache(ah)
+
+mah<- metadata(ah)
+names(mah)
+sort(table(mah$Species), decreasing=TRUE)[1:10]
+
+names(query(query(ah, "HepG2"), "CTCF"))
+
+bio<- query(ah, c("ChainFile", "UCSC", "Drosophila melanogaster"))
+bio
+bio[1]  ## metadata
+mcols(bio)
+bio[[1]] ## actually file
+
+### reproducible resarch using AnnotationHub
+snapshotDate(ah)
+snapshotDate(ah)<- "2015-03-26"
+
+
+
+```
+
+### Annotation map
+```{r}
+library(org.Hs.eg.db)
+class(org.Hs.eg.db)
+org.Hs.eg.db
+
+keytypes(org.Hs.eg.db)
+
+columns(org.Hs.eg.db)
+
+## literature on gene ORMDL3
+select(org.Hs.eg.db, keys="ORMDL3", keytype="SYMBOL", columns="PMID")
+select(org.Hs.eg.db, keys="ORMDL3", keytype="SYMBOL", columns=c("GO","TERM"))
+# no TERM in the org.Hs.eg.db
+
+## compare with the database Homo.sapiens  
+select(Homo.sapiens, keys="ORMDL3", keytype="SYMBOL", columns=c("GO","TERM"))
+
+## different databases have different columns
+
+```
+
+### Gene Ontology 
+
+```{r}
+library(GO.db)
+# a sqlite database
+con<- GO_dbconn()
+dbListTables(con)
+
+
+
+```
+
+```{r}
+biocLite("KEGGREST")
+library(KEGGREST)
+library(png)
+library(grid)
+brpng<- keggGet("hsa05212", "image")
+grid.raster(brpng)
+```
+
+
+### dbSNP database
+
+```{r}
+
+biocLite("SNPlocs.Hsapiens.dbSNP.20120608")
+library(SNPlocs.Hsapiens.dbSNP.20120608)
+s17<- getSNPlocs("ch17")
+head(s17)
+class(s17)
+library(dplyr)
+
+#What is the location on chr17 of SNP rs73971683
+s17 %>% filter(RefSNP_id=="73971683")
+```
+
+
+
+
+
+
