@@ -49,6 +49,75 @@ seqnames(x)
 as.character(x)
 ```
 
+Interval operations on GRanges objects.
+```{r}
+# the first 10 rows of the GRanges 
+HepG2[1:10]
+
+# the first 10 rows and some metadata columns
+HepG2[1:10, 1:2]
+
+# or
+HepG2[1:10, c("name", "signalValue")]
+
+g1<- HepG2[1:3]
+g2<- HepG2[4:5]
+
+# append g1 and g1
+append(g1,g2)
+
+# or use c
+c(g1,g2)
+
+# extract interval characteristics of GRanges objects
+start(g1)
+end(g1)
+strand(g1)
+width(g1)
+range(g1) # without meta data columns
+# seqlevels(g1)
+# seqlengths(g1)
+# genome(g1)
+
+mcols(g1) # meta data columns
+mcols(g1)$pValue
+
+```
+
+**flank**
+```{r}
+g1
+flank(g1, 10, start= TRUE) ## get the 10 bases before the start of the GRanges
+flank(g1, 10, start= TRUE, both=TRUE) ## get 20 bases flanking the start of the GRanges 
+flank(g1, 10, start= FALSE)  ## get the 10 bases after the end of the GRanges
+width(flank(g1,10))
+```
+
+**shift and resize**
+```{r}
+shift(g1, 5)
+resize(g1, 10, fix="start")
+resize(g1, 10, fix="center")
+
+## default upstream=2000, downstream =200
+promoters(g1, upstream=20)
+promoters(g1, upstream=20, downstream=0)
+promoters(g1, upstream=20, downstream=20)
+
+width(promoters(g1, upstream=20))
+width(promoters(g1, upstream=20, downstream=20))
+
+```
+
+distance, distanceToNearest
+```{r}
+data(GM12878)
+distance(HepG2, GM12878)
+
+# for each region in HepG2, find the nearest region in GM12878, returns a Hits object
+distanceToNearest(HepG2, GM12878)
+```
+
 length of the GRanges
 
 ```{r}
