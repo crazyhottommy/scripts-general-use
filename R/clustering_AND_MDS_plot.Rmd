@@ -1,0 +1,160 @@
+---
+title: "distance_clustering"
+author: "Ming Tang"
+date: "May 31, 2015"
+output: html_document
+---
+
+```{r}
+library(tissuesGeneExpression)
+data(tissuesGeneExpression)
+table(tissue)
+
+x<- e[,1]
+y<- e[,2]
+z<- e[,87]
+
+sqrt(sum((x-y)^2))
+sqrt(sum((x-z)^2))
+
+sqrt(crossprod(x-y))
+```
+
+```{r}
+?dist
+
+## calculate the distances between different tissues/samples/rows.
+d<- dist(t(e))
+
+as.matrix(d)[1,2]
+as.matrix(d)[1,87]
+
+```
+
+
+```{r}
+
+image(as.matrix(d))
+
+```
+
+hiearchichal clustering
+```{r}
+hc<- hclust(d) # base function
+class(hc)
+plot(hc, cex=0.5, label=tissue)  # tissue matches correct with the columns
+
+library(rafalib)
+mypar2(1,1)
+myplclust(hc, cex=0.5, label=tissue, lab.col=as.fumeric(tissue))
+```
+
+
+**Cut the tree**
+```{r}
+abline(h=120)
+cl<- cutree(hc, 120)
+table(true=tissue, clusters=cl)
+```
+
+**K-means clustering**
+```{r}
+
+length(unique(tissue))
+
+km<- kmeans(t(e), centers=7)
+names(km)
+table(tissue, clusters=km$cluster)
+```
+
+```{r}
+d<- dist(t(e))
+mds<- cmdscale(d)
+plot(mds[,1], mds[,2], bg=km$cluster, pch=21)
+
+```
+
+# if you run it again, you get a different result
+# because k-means start randomly choose starting points.
+# set.seed(1)
+
+
+heatmap
+```{r}
+image(e[1:100,])
+
+# a heatmap is the same as image, but reorder the columns and rows by clustering algorithums 
+# choose genes which varied the most across samples.
+
+library(genefilter)
+rv<- rowVars(e)
+idx<- order(-rv)[1:40]
+heatmap(e[idx,])
+```
+
+use other colors
+```{r}
+library(RColorBrewer)
+hmcols<- colorRampPalette(brewer.pal(9,"GnBu"))(100)
+heatmap(e[idx,], col=hmcols)
+```
+
+
+# use heatmap.2 from the gplots library
+```{r}
+library(gplots)
+cols<- palette(brewer.pal(8, "Dark2"))[as.fumeric(tissue)]
+cbind(colnames(e), cols)  # assign colors to different tissues
+heatmap.2(e[idx,], labCol=tissue, trace="none", ColSideColors=cols, col=hmcols)
+```
+
+Use different distance matrix, **pearson correlation**
+```{r}
+?heatmap.2
+
+?scale
+
+
+````
+
+
+
+
+```{r}
+set.seed(1)
+ind <- sample(nrow(e),500)
+Y <- t(apply(e[ind,],1,scale)) #standardize data for illustration
+
+s <- svd(Y)
+U <- s$u
+V <- s$v
+D <- diag(s$d) ##turn it into a matrix
+
+# First note that we can in fact reconstruct y
+
+Yhat <- U %*% D %*% t(V)
+resid <- Y - Yhat
+max(abs(resid))
+
+i <- sample(ncol(Y),1)
+plot(Y[,i],Yhat[,i])
+abline(0,1)
+boxplot(resid)
+
+plot(s$d)
+plot(s$d^2)
+```
+
+**Singular Value Decomposition (SVD)**
+```{r}
+# calculate the svd
+s<- svd(e)
+U<- s$u
+V<- s$v
+D<- diag(s$d)
+
+
+# mean of each row
+m<- rowMeans(e)
+cor(U[,1], m)
+```

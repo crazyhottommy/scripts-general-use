@@ -1,0 +1,758 @@
+---
+title: "PCA, MDS, k-means, Hierarchical clustering and heatmap for microarray data"
+author: "Ming Tang"
+date: "July 16, 2015"
+output: html_document
+---
+
+### Introduction  
+[Principal component analysis (PCA)](https://en.wikipedia.org/wiki/Principal_component_analysis)
+and [Multidimensional scaling (MDS)](https://en.wikipedia.org/wiki/Multidimensional_scaling) are common techniques that are used to visualize high-dimentional data. High-dimentional data are data with features (p) a lot more than observations (n).  
+That is:  `p>>n`   
+
+It is very common in genomic data sets where we have tens of thousands of features(genes, DNA methylation regions), but only a handful of samples (genomic are expensive at least for now).
+
+I am going to use a microarray data set to illustrate PCA and MDS, and then show you how to do clustering in R and make pretty heatmaps. It is a pretty old microarray data set, but the skills can be applied to any other high-dimentional genomic data sets. It contains gene expression profile for different cancer types.
+
+Many of the codes are from the R lab of the first big data Summer Institute in the University of Washington. [Module 4](https://github.com/SISBID/Module4/blob/gh-pages/2015_SISBID_Module4_Dimension_Reduction_Lab.R)
+
+**If you find anything that I did wrong or explained wrong, please let me know. I am learning also!**
+
+Load in the data  
+```{r}
+# install the package if you do not have it.
+# install.packages("ISLR")
+library(ISLR)
+
+ncidat = t(NCI60$data)
+colnames(ncidat) = NCI60$labs
+
+dim(ncidat)
+unique(colnames(ncidat))
+```
+
+First 6 rows, 6 columns of the data:  
+```{r}
+ncidat[1:6,1:6]
+```
+
+### PCA - take SVD to get solution.
+[Singular value decomposition(SVD)](http://genomicsclass.github.io/book/pages/svd.html) is used for PCA.
+
+To get an idea of how svd works, I strongly recommend you to read [this](http://genomicsclass.github.io/book/pages/svd.html) and [this](http://genomicsclass.github.io/book/pages/mds.html)  
+
+Read about PCA and MDS [here](https://github.com/crazyhottommy/Module4/blob/gh-pages/2015_SISBID_4_2.pdf)
+ 
+We are going to center `(x- mean)` the same gene from different samples, but not scale `(x-mean)/sd` them.  
+That's why we transpose the matrix (scale works on columns  `?scale`), and then transpose it back.
+Be aware of whether you should center/scale your data or not. It all depends on the intrinsic properties of your data and the purpose of your analysis. If your data are in the similar range, you do not have to center it.
+
+Usually for a SVD analysis:    
+X is a n x p matrix (n rows and p columns)  
+`Xnxp = Unxn %*% Dnxp %*% Vpxp`  
+
+One has to be aware that in the microarray data, columns are usually samples(observations n), rows are genes(features p).  
+ 
+we need to first transpose X for the microarray data for the svd analysis
+
+```{r}
+X = t(scale(t(ncidat),center=TRUE,scale=FALSE))
+```
+
+### Use svd to get the matrice. 
+
+One can use the base R function princomp (default center and scale), but svd gives you more controls.
+
+in a svd analysis, a matrix n x p  matrix X is decomposed by `X = U*D*V`:  
+1.U is an m×n orthogonal matrix.    
+2.V is an n×n orthogonal matrix.  
+3.D is an n×n diagonal matrix.  
+
+By definition D should be a n x p (64 x 6830) matrix, but in this case, it becomes 64 x 64 matrix.  
+The reason is that diagonals of D: d1 >= d2 >= d3 >= ....d(r) where r =rank(X), `rank(X) <= min(n,p)`  
+
+See the rank of a [matrix](https://en.wikipedia.org/wiki/Rank_(linear_algebra))  
+The other ds are all zeros. (no variations after d(r)), that's why D is dropped to 64 x 64 matrix.
+
+We can check it:  
+```{r}
+# we transpose X again for svd
+sv = svd(t(X))
+U = sv$u
+V = sv$v
+D = sv$d
+
+## in R calculate the rank of a matrix is by
+qr(t(X))$rank
+
+length(D)
+
+min(D)
+# the last diagnal in D is very small.
+# it is very close to 0, it has to do with the precision of the decimals in computer
+```
+
+### let's plot scatter plot between PCs 
+
+PC scatterplots
+
+PCs: **Z = XV or Z = UD (U are un-scaled PCs)**
+
+Some facts of PCA:  
+
+**k th column of Z, Z(k), is the k th PC.(the k th pattern)** 
+
+PC loadings: V  
+k th column of V, V(k) is the k th PC loading (feature weights). aka. **the k th column of V encodes the associated k th pattern in feature space.**
+
+PC loadings: U  
+k th column of U, U(k) is the k th PC loading (observation weights). aka. **the k th column of U encodes the associated k th pattern in observation space.**
+
+Diagnal matrix: D  
+diagnals in D: **d(k) gives the strength of the k th pattern.**
+
+Variance explained by k th PC:  d(k)^2  
+Total variance of the data: sum(d(k1)^2 + d(k2)^2 + .....d(k)^2+....)  
+
+proportion of variane explained by k th PC:
+d(k)^2 / sum(d(k1)^2 + d(k2)^2 + .....d(k)^2+....)  
+
+Let's plot U1 vs U2 (plot the loadings). Remember that they are unscaled PCs
+```{r}
+cols = as.numeric(as.factor(colnames(ncidat)))
+
+plot(U[,1],U[,2],type="n",xlab="PC1",ylab="PC2")
+text(U[,1],U[,2],colnames(X),col=cols)
+
+```
+
+**we see that Melanoma samples are close to each other.**
+
+U are un-scaled PCs. We can also plot Z which is scaled PC:  
+in R `Z<- X%*%V` or `Z<- U %*% diag(D)` 
+
+```{r}
+par(mfrow=c(1,1))
+Z = t(X)%*%V
+
+# plot PC1 vs PC2
+plot(Z[,1], Z[,2], type ="n", xlab="PC1", ylab="PC2")
+text(Z[,1], Z[,2], colnames(X), col=cols)
+```
+
+**It looks much the same as the the figure of U1 vs U2 above using U, but with different scales.**
+
+you can also plot PC2 vs PC3
+```{r}
+plot(Z[,2], Z[,3], type ="n", xlab = "PC2", ylab="PC3")
+text(Z[,2], Z[,3], colnames(X), col=cols)
+
+```
+
+We can look as many PCs as we like, but we usually stop when the cumulative variance explained by PCs is over ~90% to ~95% of total variance.  
+
+Or plot it by ggplot2 for pretty figure:    
+```{r}
+pc_dat<- data.frame(type = rownames(Z), PC1 = Z[,1], PC2= Z[,2])
+library(ggplot2)
+ggplot(pc_dat,aes(x=PC1, y=PC2, col=type)) + geom_point() + geom_text(aes(label = type), hjust=0, vjust=0)
+
+## the text is a bit messy, may try packages below or play more with ggplot2
+## use directlabels http://directlabels.r-forge.r-project.org/
+## use cowplot https://github.com/wilkelab/cowplot
+```
+
+
+#### PC loadings - visualize data by limiting to top genes in magnitude in the PC loadings  
+The matrix V contains the weigths for the features, and we can use V to select important features(genes) that contribute to the each PC.
+
+```{r}
+## get a gradient of colors for grey, green, red.
+## one can do better use other libraries such RcolorBrewer. see examples later.
+
+aa<- grep("grey",colors())
+bb<- grep("green",colors())
+cc<-  grep("red",colors())
+gcol2<- colors()[c(aa[1:30],bb[1:20],rep(cc,2))]
+
+## use the genes that drive the first PC1. This is the first major patter in the data
+k=1
+ord1<- order(abs(V[,k]),decreasing=TRUE)
+x1<- as.matrix(X[ord1[1:250],])
+heatmap(x1,col=gcol2)
+
+# use the genes that drive the second PC (PC2)
+j<- 2
+ord<- order(abs(V[,j]),decreasing=TRUE)
+
+## we just use the first 250 features(genes) to plot a heatmap, This is the second major pattern.
+x<- as.matrix(X[ord[1:250],])
+heatmap(x,col=gcol2)
+
+```
+
+**We find the genes that drive the Melanoma together.**
+
+#### Variance Explained
+
+```{r}
+varex = 0
+cumvar = 0
+denom = sum(D^2)
+for(i in 1:64){
+  varex[i] = D[i]^2/denom
+  cumvar[i] = sum(D[1:i]^2)/denom
+}
+
+## variance explained by each PC cumulatively
+cumvar
+```
+
+
+#### screeplot
+
+```{r}
+par(mfrow=c(1,2))
+plot(1:64,varex,type="l",lwd=2,xlab="PC",ylab="% Variance Explained")
+plot(1:64,cumvar,type="l",lwd=2,xlab="PC",ylab="Cummulative Variance Explained")
+```
+
+#### Sparse PCA
+  
+When p>>n (we have way more genes than the samples), many featuers(genes) are irrelevant. PCA can perform very badly. Sparse PCA zero out irrelevant features from PC loadings. The advantage is that we can find important features that contribute to major patterns. Tipically, opitmize PCA criterion with sparsity-encouraging penalty of matrix V. It is an active area of research!  
+
+In other words, sparse PCA does feature selection for us, it retains only the features that drive the major pattern in the data. Again, we may or may not need to do sparse PCA to do feature selection. We can use some pre-knowledges, say, oncogenes and tumor-suppressors, differentially expressed genes across observations and most variable genes across samples etc. 
+
+```{r}
+library("PMA")
+
+## we also look at the first 4 PCs
+spc = SPC(t(X),sumabsv=10,K=4)
+
+#how many genes selected? we look at the V matrix again, if the weights are zeros, they are not important features. sparse PCA zero them out. For each of the four PCs, how many features are retained?
+apply(spc$v!=0, 2, sum)
+
+#PC scatterplots
+cols = as.numeric(as.factor(colnames(ncidat)))
+K = 3
+pclabs = c("SPC1","SPC2","SPC3","SPC4")
+par(mfrow=c(1,K))
+for(i in 1:K){
+  j = i+1
+  plot(spc$u[,i],spc$u[,j],type="n",xlab=pclabs[i],ylab=pclabs[j])
+  text(spc$u[,i],spc$u[,j],colnames(X),col=cols)
+}
+
+#SPC loadings - visualize data by limiting to genes selected by the sparse PC loadings
+aa = grep("grey",colors())
+bb = grep("green",colors())
+cc = grep("red",colors())
+gcol2 = colors()[c(aa[1:30],bb[1:20],rep(cc,2))]
+
+j = 1
+ind = which(spc$v[,j]!=0)
+x = as.matrix(X[ind,])
+heatmap(x,col=gcol2)
+
+```
+
+It looks different from the heatmap we get using the top 250 features that drive PC1 in our regular PCA, becausein this case, we are not selecting the top 250, rather using only the vs (173 features) that are not zeros. Select different features for heatmap, it will look different.
+
+`length(ind)`    
+173 features.  
+
+#### variance explained
+```{r}
+spc$prop.var.explained
+```
+
+
+#### Using MDS (multidimentional scaling )
+
+To perform MDS analysis. we need a measure for similarities or a distance matrix.
+One can try many distance matrix, `?dist` to see the help. eucledian is the default, but it usually does not perform well. try all of them if you can:  "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski". Read [this](http://genomicsclass.github.io/book/pages/distance.html) to understand the mathematial definition of distance.
+
+MDS is different from PCA in that:  
+1. it is non-linear.  
+2. visualizing the proximitites, only need dissimilarities. aka, it does not need the original data. It only needs the distances between the data points. Imagine I only tell you the distances between each of the cities (Boson, LA, Miami, Houston, Seattle ....), you can reconstruct a map of many cities based on only the distances.
+
+Both MDS and PCA are for dimension reduction for visualization.  
+
+```{r}
+# default is educledian
+d<- dist(t(X))
+mds<- cmdscale(d, k=2)
+par(mfrow=c(1,1))
+plot(mds[,1], mds[,2], type="n", main = "eucledian MDS")
+text(mds[,1], mds[,2], rownames(mds), col=cols)
+
+## use manhattan distance matrix
+d<- dist(t(X), method = "manhattan")
+mds<- cmdscale(d, k=2)
+plot(mds[,1], mds[,2], type="n", main = "manhattan MDS")
+text(mds[,1], mds[,2], rownames(mds), col=cols)
+
+# use minkowski distance
+d<- dist(t(X), method = "minkowski")
+mds<- cmdscale(d, k=2)
+plot(mds[,1], mds[,2], type="n", main = "minkowski MDS")
+text(mds[,1], mds[,2], rownames(mds), col=cols)
+
+```
+
+**These three distance matrix generate comparable MDS plot. We can clearly see Melanoma samples are close to each other. Compare with the PCA analysis, they yeild similar results.**  
+
+
+```{r}
+d<- dist(t(X), method = "canberra")
+mds<- cmdscale(d, k=2)
+plot(mds[,1], mds[,2], type="n", main = "canberra MDS")
+text(mds[,1], mds[,2], rownames(mds), col=cols)
+```
+
+**It looks like canberra distance is very bad for this particular dataset, but it may be useufl for other data sets.**
+
+### K-means clustering.  
+
+Read about K-means, hierachinal clustering, distance matrix and different linkages [here](https://github.com/crazyhottommy/Module4/blob/gh-pages/2015_SISBID_4_3.pdf)
+
+One needs to specify a K (how many clusters you want).  
+```{r}
+K = 9
+km = kmeans(t(ncidat),centers=K)
+
+#PCA - take SVD to get solution
+#center genes, but don't scale. SVD analysis
+
+X = t(scale(t(ncidat),center=TRUE,scale=FALSE))
+sv = svd(t(X))
+U = sv$u
+V = sv$v
+D = sv$d
+Z = t(X)%*%V
+
+# how do we visualize K-means results?
+## overlay K-means result on the PCA plot.
+
+par(mfrow=c(1,1))
+plot(Z[,1],Z[,2],col=km$cluster,type="n")
+text(Z[,1],Z[,2],colnames(ncidat),cex=.75,col=km$cluster)
+cens = km$centers
+points(cens%*%V[,1],cens%*%V[,2],col=1:K,pch=16,cex=3)
+
+```
+
+
+#### Re-run K-means and see solution changes!  set.seed() if you want reproducible result!  
+k-means initialize each observation i to a cluster assignment k randomly.
+
+```{r}
+K = 9
+km = kmeans(t(ncidat),centers=K)
+plot(Z[,1],Z[,2],col=km$cluster,type="n")
+text(Z[,1],Z[,2],colnames(ncidat),cex=.75,col=km$cluster)
+cens = km$centers
+points(cens%*%V[,1],cens%*%V[,2],col=1:K,pch=16,cex=3)
+```
+
+
+#### Try different K
+```{r}
+K = 5
+km = kmeans(t(ncidat),centers=K)
+plot(Z[,1],Z[,2],col=km$cluster,type="n")
+text(Z[,1],Z[,2],colnames(ncidat),cex=.75,col=km$cluster)
+cens = km$centers
+points(cens%*%V[,1],cens%*%V[,2],col=1:K,pch=16,cex=3)
+```
+
+
+### Hierarchical clustering  
+
+In addition to the distance matrix, we need to define how to calculate the distance between two sets when the points keep merging each other. `?hclust` see all the methods: "ward.D", "ward.D2", "single", "complete", "average" ....
+
+```{r}
+require("ISLR")
+ncidat<- t(NCI60$data)
+colnames(ncidat)<- NCI60$labs
+
+dim(ncidat)
+unique(colnames(ncidat))
+```
+
+
+#### Complete linakge - Euclidean distance
+
+**Maximum dissimilarity** between points in two sets used to determine which two sets should be merged.  
+Often gives comparable cluster sizes.  
+Less sensitive to outliers.  
+Works better with spherical distributions.  
+
+Note that for clustering samples, we did not do any scaling for the data.
+
+```{r}
+cols = as.numeric(as.factor(colnames(ncidat)))
+Dmat = dist(t(ncidat))
+com.hclust = hclust(Dmat,method="complete")
+plot(com.hclust,cex=.7,main="Complete Linkage")
+
+
+# library(devtools) # get from CRAN with install.packages("devtools")
+# install_github("ririzarr/rafalib")
+library(rafalib)
+# use function in rafalib to plot colored dendragram
+myplclust(com.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "complete linkage")
+```
+
+
+#### Single linkage
+
+**Minimum dissimilarity** between points in two sets used to determine which two sets should be merged.  
+Can handle diverse shapes.  
+Very sensitive to outliers or noise.  
+Often results in unbalanced clusters.  
+Extended, trailing clusters in which observations fused one at a time -chaining.    
+
+```{r}
+sing.hclust = hclust(Dmat,method="single")
+myplclust(sing.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "single linkage")
+```
+
+#### Average linkage
+
+**Average dissimilarity** between points in two sets used to determine  
+which two sets should be merged.  
+A compromise between single and complete linkage.  
+Less sensitive to outliers.  
+Works better with spherical distributions.  
+
+**Similar linkage: Ward’s linkage.**
+Join objects that minimize Euclidean distance / average Euclidean distance
+
+```{r}
+ave.hclust = hclust(Dmat,method="average")
+myplclust(ave.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "average linkage eucledian distance")
+```
+
+
+####Ward's linkage
+```{r}
+ward.hclust = hclust(Dmat,method="ward.D")
+myplclust(ward.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "ward linkage eucledian distance")
+```
+
+**Cut the tree**
+```{r}
+ward.hclust<- hclust(Dmat,method="ward.D")
+myplclust(ward.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "ward linkage eucledian distance")
+
+names(ward.hclust)
+
+abline(h=120)
+rect.hclust(ward.hclust,h=120)
+cl<- cutree(ward.hclust, h= 120)
+table(type=colnames(X), clusters=cl)
+```
+
+### Complete linkage with different distances. 
+
+```{r}
+Dmat = dist(t(ncidat),method="manhattan") #L1 distance
+com.hclust = hclust(Dmat,method="complete")
+myplclust(com.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "complete linkage- L1 distance")
+```
+
+We can try all different combinations of distance matrix and different linkages. Never use eucledian distances! **one can also use 1- cor(X) as a distance measure! It is commonly used in the clustering of gene expression**. Also, use either average linkage or Ward's linkage.
+
+####Ward's linakge for manhattan distance
+```{r}
+Dmat = dist(t(ncidat),method="manhattan")
+ward.hclust = hclust(Dmat,method="ward.D")
+myplclust(ward.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "ward linkage-L1 distance")
+```
+
+####Ward's linakge for 1- cor(X) distance
+
+`?cor` calculate correlation between columns of a matrix. Do not need to transpose the matrix for calculating the distances between samples(columns).
+
+```{r}
+Dmat = as.dist(1-cor(ncidat))
+ward.hclust = hclust(Dmat,method="ward.D")
+myplclust(ward.hclust, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "ward linkage-1-cor(X) distance")
+```
+
+
+#### Bi-clustering
+In the above clustering examples, we use all the features(genes) to cluster samples.
+we are going to do biclustering (cluster both features and samples)  and make a Heatmap.
+There are too many features, in order to cluster rows (genes/features), we need to filter the features first.
+
+```{r}
+require("ISLR")
+ncidat = t(NCI60$data)
+colnames(ncidat) = NCI60$labs
+
+#filter genes using PCA
+# scale function scales the columns of a numeric matrix
+X = t(scale(t(ncidat),center=TRUE,scale=FALSE))
+sv = svd(t(X));
+V = sv$v
+
+#PC loadings - visualize data by limiting to top genes in magnitude in the PC loadings
+## get some colors
+library(RColorBrewer)
+hmcols<- colorRampPalette(brewer.pal(9,"GnBu"))(100)
+
+## use feature weigths for the first PC (PC1)
+j = 1
+ord = order(abs(V[,j]),decreasing=TRUE)
+x = as.matrix(X[ord[1:250],])
+
+# the default is eucledian distance and complete linage for both rows and columns
+heatmap(x,col=hmcols,hclustfun=function(x)hclust(x,method="ward.D"))
+
+## we can also use weights for the second PC (PC2)
+j = 2
+ord = order(abs(V[,j]),decreasing=TRUE)
+x = as.matrix(X[ord[1:250],])
+
+#cluster heatmap - uses Ward's linkage (complete is default)
+
+heatmap(x,col=hmcols,hclustfun=function(x)hclust(x,method="ward.D"))
+```
+
+#### Or we can select genes that are most variable across samples, check the genefilter bioconductor package. For gene-expression data, we can select top features(genes) that are differentially expressed.
+```{r}
+
+library(genefilter)
+rv<- rowVars(X)
+## select the top 250 most variable genes for clustering
+idx<- order(-rv)[1:250]
+heatmap(X[idx,], col=hmcols,hclustfun=function(x)hclust(x,method="ward.D"))
+```
+
+**Because using PC loadings and `rowVars` select different features, the heatmaps look different.** 
+
+### use heatmap.2
+
+There are many other packages give better control of the heatmap. 
+One can also check other packages: heatmap.3, pheatmap, gapmap and d3heatmap!!!!  
+ 
+
+Let's use heatmap.2 
+
+```{r}
+library(RColorBrewer)
+library(gplots)
+hmcols<- colorRampPalette(brewer.pal(9,"GnBu"))(100)
+heatmap.2(x, hclustfun=function(x)hclust(x,method="ward.D"), col=hmcols, trace= "none", main = "eucledian distance")
+```
+
+It produced the same heatmap as `heatmap` function, but now the heatmap can be resized if you drag the window of the picture. In addition, it adds a color key on the top left. `?heatmap.2` to see many other options.  
+
+we can also change the distance matrix.  
+Let's try manhattan distance.
+```{r}
+library(RColorBrewer)
+library(gplots)
+hmcols<- colorRampPalette(brewer.pal(9,"GnBu"))(100)
+
+heatmap.2(x, distfun=function(x) dist(x, method='manhattan'), hclustfun=function(x)hclust(x,method="ward.D"), col=hmcols, trace= "none", main = "manhattan distance")
+```
+
+**In this case, the eucledian distance performed OK, but usually I avoid using eucledian distance.**
+
+Let's use correlation distance.  
+```{r}
+heatmap.2(x, distfun=function(x) as.dist(1-cor(t(x))), hclustfun=function(x)hclust(x,method="ward.D"), col=hmcols, trace= "none", main = "correaltion distance")
+```
+
+**add column sidebars.**
+```{r}
+library(gplots)
+# map color to the same cancer type.
+## colors avaiable in the package 
+display.brewer.all()
+
+# qualitative color scale for side bars, can also use:
+# cols<- sample(colors(), 14, replace = F)[as.numeric(as.factor(colnames(ncidat)))]
+# the following gives you more control of the color
+
+cols1<- palette(brewer.pal(8, "Dark2"))
+cols2<- palette(brewer.pal(12, "Paired"))
+
+cols<- c(cols1, cols2)[as.numeric(as.factor(colnames(ncidat)))]
+
+cbind(colnames(x), cols)  # check which color maps to different cancer types
+
+## notice that matrix rows of x are centered  
+heatmap.2(x, distfun=function(x) as.dist(1-cor(t(x))), hclustfun=function(x)hclust(x,method="ward.D"), trace="none", ColSideColors=cols, col=hmcols, labCol=colnames(x), labRow = F, margins = c(6,6), density.info="none", main = "centered and correlation distance" )
+
+```
+
+Also notice that we are not standarizing each row (feature/gene) across different samples. See the color key. We can do it by using `scale` on matrix x first before feeding into the `heatmap.2` function or we can specify `scale = "row"` in the `heatmap.2` function to get a Z-score.  
+
+**However,one needs to be aware that in the heatmap.2 function, clustering is performed before scaling.** 
+
+> **"The defaults of almost every heat map function in R does the hierarchical clustering first, then scales the rows then displays the image"**  
+
+[biostars post1](https://www.biostars.org/p/85527/)  
+[biostars post2](https://www.biostars.org/p/15285/)  
+
+
+scale the rows:  
+```{r}
+heatmap.2(x, distfun=function(x) as.dist(1-cor(t(x))), hclustfun=function(x)hclust(x,method="ward.D"),trace="none", scale = "row", ColSideColors=cols, col=hmcols, labCol=colnames(ncidat), labRow = F, margins = c(6,6), density.info="none", main = "scaled gene and correlation distance")
+
+```
+
+**After scaling rows, the pattern looks the same, but the color is bit different after scaling**  
+
+
+**Add RowSidebar**
+```{r}
+
+# assign the output of heatmap.2 to a variable hm
+hm<- heatmap.2(x, distfun=function(x) as.dist(1-cor(t(x))), hclustfun=function(x)hclust(x,method="ward.D"),trace="none", scale = "row", ColSideColors=cols, col=hmcols, labCol=colnames(ncidat), labRow = F, margins = c(6,6), density.info="none", main = "scaled gene and correlation distance")
+
+names(hm)
+
+#return the maxtrix returned after clustering as in the heatmap
+m.afterclust<- x[rev(hm$rowInd),rev(hm$colInd)]
+
+# to extract subgroups that are clustered together
+# rowDendrogram is a list object 
+labels(hm$rowDendrogram[[1]])
+labels(hm$rowDendrogram[[2]][[2]])
+
+#Separating clusters
+#convert the rowDendrogram to a hclust object
+hc.rows<- as.hclust(hm$rowDendrogram)
+hc.cols<- as.hclust(hm$colDendrogram)
+
+table(type=colnames(X), clusters=cutree(hc.cols, k=9))
+
+names(hc.rows)
+
+plot(hc.rows)  # rotate the dendrogram 90 degree, it is the same as in the heatmap
+
+rect.hclust(hc.rows,h=5)
+
+ct<- cutree(hc.rows,h=5)
+
+# get the members of each subgroup in the order of the cluster(left--->right), the row order will
+# be reversed compared to the heatmap.
+
+# ct[hc.rows$order]
+
+table(ct)
+
+# get the matrix after clustering in the order of the heatmap (up--->down)
+
+tableclustn<-  data.frame(m.afterclust, cluster = rev(ct[hc.rows$order]))
+
+# remake the heatmap adding the RowSide bar based on the subgroups
+
+mycolhc<- palette(brewer.pal(8, "Dark2"))
+mycolhc<-mycolhc[as.vector(ct)]
+
+heatmap.2(x, distfun=function(x) as.dist(1-cor(t(x))), hclustfun=function(x)hclust(x,method="ward.D"),trace="none", scale = "row", ColSideColors=cols, RowSideColors = mycolhc, col=hmcols, labCol=colnames(ncidat), labRow = F, margins = c(6,6), density.info="none", main = "scaled gene and correlation distance")
+
+```
+
+
+**A different way to make a similar heatmap.**  
+
+Use the dendrogram object and feed into the Rowv and Colv arguments.
+
+```{r}
+## cluster for the rows (genes), we do not need to transpose ncidat 
+## but if you are clustering columns, hclust(dist(t(ncidat)))
+
+## we use weights for the second PC (PC2)
+j = 2
+ord = order(abs(V[,j]),decreasing=TRUE)
+x = as.matrix(X[ord[1:250],])
+
+hc.cols<- hclust(as.dist(1-cor(x)), method = "ward.D")  # cluster the samples
+hc.rows<- hclust(as.dist(1-cor(t(x))), method = "ward.D") # cluster the genes
+table(type=colnames(X), clusters=cutree(hc.cols, k=9))
+
+names(hc.cols)
+hc.cols$labels  #the original label from the maxtrix x
+hc.cols$order
+
+#print the row labels in the order they appear in the tree
+hc.cols$labels[hc.cols$order]  
+
+## plot the cluster, and validate the order of the labels
+myplclust(hc.cols, labels=colnames(ncidat), lab.col=as.fumeric(colnames(ncidat)), main = "1- cor(x) distance")
+
+rect.hclust(hc.rows, h= 2.5)
+
+cutree(hc.rows,h=2.5)
+
+ct<- cutree(hc.rows,k=3)
+#get the members' names of each clusters
+
+head(ct)
+
+table(ct)
+
+# sort(ct)
+
+# split(names(ct),ct)
+
+mycolhc<- palette(brewer.pal(8, "Dark2"))
+mycolhc<-mycolhc[as.vector(ct)]
+
+```
+
+
+**Add the RowSidebar**
+```{r}
+rowDend<- rev(as.dendrogram(hc.rows))
+colDend<- rev(as.dendrogram(hc.cols))
+
+heatmap.2(x, Rowv = rowDend, Colv = colDend, trace="none", scale = "row", ColSideColors=cols, RowSideColors= mycolhc, col=hmcols, labCol=colnames(ncidat), labRow = F, margins = c(6,6), density.info="none", main = "scaled gene and correlation distance")
+
+## I am not sure for the sample clustering, it is not exactly the same as the one above
+
+#
+#heatmap.2(x[cutree(hc.rows,k=3)==3,])
+#heatmap.2(x[cutree(hc.rows,k=3)==2,])
+#heatmap.2(x[cutree(hc.rows,k=5)==5,])
+
+```
+
+
+#### Further readings
+[You probably don’t understand heatmaps](https://biomickwatson.wordpress.com/2015/04/05/you-probably-dont-understand-heatmaps/) by Mick Watson
+
+[Why do you look at the speck in your sister’s quilt plot and pay no attention to the plank in your own heat map?](https://liorpachter.wordpress.com/2014/01/19/why-do-you-look-at-the-speck-in-your-sisters-quilt-plot-and-pay-no-attention-to-the-plank-in-your-own-heat-map/) by Lior Patcher 
+
+posts on biostars:
+[understanding the clustering in heatmap](https://www.biostars.org/p/91978/)  
+
+[Making a heatmap with R](http://davetang.org/muse/2010/12/06/making-a-heatmap-with-r/) by Dave Tang.
+
+[Using RColorBrewer to colour your figures in R](http://www.r-bloggers.com/r-using-rcolorbrewer-to-colour-your-figures-in-r/)  by R bloggers 
+
+[how to change heatmap2 color range in r](http://stackoverflow.com/questions/17820143/how-to-change-heatmap-2-color-range-in-r)  
+
+[Customizing gplots heatmap.2 - color range for heatmap and	legend for RowSideColors](https://stat.ethz.ch/pipermail/bioconductor/2011-November/041866.html)  
+
+[map colour to values in heatmap](http://seqanswers.com/forums/showthread.php?p=114275&posted=1#post114275)  
+
+>"Now for my heatmap power tip of the day, if you will: use the "useRaster=TRUE" parameter in your heatmap.2() call. Excellent extension by R developers since 2.13. But for some reason the R developers explicitly turn it off for interactive session windows, so you'll only see it in an exported file. (Unless you have a custom image() function which doesn't disable it, I did this.) It also makes the exported file hugely smaller, especially for PDFs."
+
+>"What it does is darn-near essential for nextgen coverage heatmaps -- it actually properly resamples the image as it down-sizes the image during export. Without useRaster=TRUE, image() creates a zillion tiny rectangles to represent the heatmap, all pieced together right next to each other. When the display is fewer pixels/points high than the number of rows of data, it discretizes the data -- that is, it uses integer values for the rectangles. In many cases, especially onscreen, many rectangles fully overlap others, randomly obscuring the real patterns, and often blunting your otherwise cool-looking signal."
+
+>"Best way to test is export to PDF with useRaster=FALSE, then do it again with useRaster=TRUE. For me, night and day."
+
+
+
+
+
+
+
