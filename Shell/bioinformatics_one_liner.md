@@ -55,6 +55,58 @@ samtools view -H yourFile.bam | grep "\@SQ" | sed 's/^.*SN://g' | cut -f 1 | xar
 
 samtools view -H yourFile.bam | grep "\@SQ" | sed 's/^.*SN://g' | cut -f 1 | perl -ane 'system("cat tmp.$F[0].bcf >> yourFile.vcf");'
 
+##split large file by id/label/column
+awk '{print >> $1; close($1)}' input_file
+
+## sort vcf file with header
+cat my.vcf | awk '$0~"^#" { print $0; next } { print $0 | "sort -k1,1V -k2,2n" }'
+
+## Rename a file, bash string manipulation
+for file in *gz
+do zcat $file > ${file/bed.gz/bed}
+
+## gnu sed print invisible characters
+cat my_file | sed -nl
+
+## or cat -v
+
+## exit a dead ssh session
+~.
+
+## copy large files, copy the from_dir directory inside the to_dir directory
+rsync -av from_dir  to_dir
+
+## copy every file inside the frm_dir to to_dir
+rsync -av from_dir/ to_dir
+
+## make directory using the current date
+mkdir $(date +%F)
+
+## all the folders' size in the current folder (GNU du)
+du -h --max-depth=1
+
+# this one is a bit different, try it and see the difference
+du -ch
+
+## the total size of current directory
+du -sh .
+
+## disk usage
+df -h
+
+## the column names of the file, install csvkit https://csvkit.readthedocs.org/en/0.9.1/
+csvcut -n
+
+## open top with human readable size in Mb, Gb. install htop for better visualization
+top -M
+
+## how many memeory are used in Gb
+free -mg
+
+## print out unique rows based on the first and second column
+awk '!a[$1,$2]++' input_file
+
+
 ```
 
 
