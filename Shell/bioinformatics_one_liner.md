@@ -106,6 +106,14 @@ free -mg
 ## print out unique rows based on the first and second column
 awk '!a[$1,$2]++' input_file
 
+## do not wrap the lines using less
+less -S
+
+## pretty output
+fold -w 60
+column -t
+
+
 
 ```
 
