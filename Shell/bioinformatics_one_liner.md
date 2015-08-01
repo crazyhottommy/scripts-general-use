@@ -113,7 +113,8 @@ less -S
 fold -w 60
 column -t
 
-
+## pass tab as delimiter http://unix.stackexchange.com/questions/46910/is-it-a-bug-for-join-with-t-t
+-t $'\t'
 
 ```
 
