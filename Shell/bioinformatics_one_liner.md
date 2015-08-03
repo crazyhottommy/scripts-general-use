@@ -116,6 +116,9 @@ column -t
 ## pass tab as delimiter http://unix.stackexchange.com/questions/46910/is-it-a-bug-for-join-with-t-t
 -t $'\t'
 
+## awk with the first line printed always
+awk ' NR ==1 || ($10 > 1 && $11 > 0 && $18 > 0.001)'  input_file
+
 ```
 
 
