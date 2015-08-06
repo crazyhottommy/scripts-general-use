@@ -111,7 +111,7 @@ less -S
 
 ## pretty output
 fold -w 60
-column -t
+cat file.txt | column -t | less -S
 
 ## pass tab as delimiter http://unix.stackexchange.com/questions/46910/is-it-a-bug-for-join-with-t-t
 -t $'\t'
