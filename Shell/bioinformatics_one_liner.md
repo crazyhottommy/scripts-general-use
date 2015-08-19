@@ -119,6 +119,11 @@ cat file.txt | column -t | less -S
 ## awk with the first line printed always
 awk ' NR ==1 || ($10 > 1 && $11 > 0 && $18 > 0.001)'  input_file
 
+## delete blank lines with sed
+sed /^$/d
+
+## delete the last line
+sed $d
 ```
 
 
