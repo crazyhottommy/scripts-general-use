@@ -124,6 +124,19 @@ sed /^$/d
 
 ## delete the last line
 sed $d
+
+## loop over all chromosomes
+for i in {1..22} X Y
+do
+echo $i
+done
+
+# or
+for i in {01..22} X Y
+do
+echo $i
+done
+
 ```
 
 
