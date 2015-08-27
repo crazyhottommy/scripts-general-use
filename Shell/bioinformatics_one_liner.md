@@ -136,7 +136,15 @@ for i in {01..22} X Y
 do
 echo $i
 done
-
 ```
 
+awk to join files based on several columns
 
+my [github repo](https://github.com/crazyhottommy/scripts-general-use/blob/master/Shell/Awk_anotates_vcf_with_bed.ipynb)
+
+```
+### select lines from a file based on columns in another file
+## http://unix.stackexchange.com/questions/134829/compare-two-columns-of-different-files-and-print-if-it-matches
+awk -F"\t" 'NR==FNR{a[$1$2$3]++;next};a[$1$2$3] > 0' file2 file1 
+
+```
