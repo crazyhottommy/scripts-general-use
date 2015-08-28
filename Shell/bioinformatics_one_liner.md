@@ -13,6 +13,9 @@ echo 'ATTGCTATGCTNNNT' | rev | tr 'ACTG' 'TGAC'
 ##3 split a multifasta file into single ones with csplit:
 csplit -z -q -n 4 -f sequence_ sequences.fasta /\>/ {*}  
 
+## Split a multi-FASTA file into individual FASTA files by awk
+awk '/^>/{s=++d".fa"} {print > s}' multi.fa
+
 ## linearize multiline fasta
 cat file.fasta | awk '/^>/{if(N>0) printf("\n"); ++N; printf("%s\t",$0);next;} {printf("%s",$0);}END{printf("\n");}'
 
