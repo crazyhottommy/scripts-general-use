@@ -151,3 +151,13 @@ my [github repo](https://github.com/crazyhottommy/scripts-general-use/blob/maste
 awk -F"\t" 'NR==FNR{a[$1$2$3]++;next};a[$1$2$3] > 0' file2 file1 
 
 ```
+
+Finally learned about the !$ in unix: take the last thing (word) from the previous command. 
+`echo hello, world; echo !$` gives 'world'
+
+
+Create a script of the last executed command:
+`echo "!!" > foo.sh`
+
+Reuse all parameter of the previous command line:
+`!*`
