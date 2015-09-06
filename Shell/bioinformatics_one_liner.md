@@ -69,7 +69,7 @@ for file in *gz
 do zcat $file > ${file/bed.gz/bed}
 
 ## gnu sed print invisible characters
-cat my_file | sed -nl
+cat my_file | sed -n 'l'
 
 ## or cat -v
 
@@ -152,16 +152,16 @@ awk -F"\t" 'NR==FNR{a[$1$2$3]++;next};a[$1$2$3] > 0' file2 file1
 
 ```
 
-Finally learned about the !$ in unix: take the last thing (word) from the previous command. 
+Finally learned about the !$ in unix: take the last thing (word) from the previous command.   
 `echo hello, world; echo !$` gives 'world'
 
 
-Create a script of the last executed command:
+Create a script of the last executed command:  
 `echo "!!" > foo.sh`
 
-Reuse all parameter of the previous command line:
+Reuse all parameter of the previous command line:  
 `!*`
 
-find bam in current folder (search recursively) and copy it to a new directory using 5 CPUs  
+find bam in current folder (search recursively) and copy it to a new directory using 5 CPUs    
 `find . -name "*bam" | xargs -P5 -I{} rsync -av {} dest_dir`
 
