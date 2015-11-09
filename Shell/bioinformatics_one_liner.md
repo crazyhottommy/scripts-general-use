@@ -165,3 +165,4 @@ Reuse all parameter of the previous command line:
 find bam in current folder (search recursively) and copy it to a new directory using 5 CPUs    
 `find . -name "*bam" | xargs -P5 -I{} rsync -av {} dest_dir`
 
+`ls -X`  will group files by extension.
