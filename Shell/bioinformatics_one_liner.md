@@ -166,3 +166,14 @@ find bam in current folder (search recursively) and copy it to a new directory u
 `find . -name "*bam" | xargs -P5 -I{} rsync -av {} dest_dir`
 
 `ls -X`  will group files by extension.
+
+loop through all the chromosomes
+
+```bash
+for i in {1..22} X Y 
+do
+  echo $i
+done
+```
+
+for i in in `{01..22}` will expand to 01 02 ...
