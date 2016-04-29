@@ -177,3 +177,39 @@ done
 ```
 
 for i in in `{01..22}` will expand to 01 02 ...
+
+
+change every other newline to tab:
+
+`paste` is used to concatenate corresponding lines from files: paste file1 file2 file3 .... If one of the "file" arguments is "-", then lines are read from standard input. If there are 2 "-" arguments, then paste takes 2 lines from stdin. And so on.
+
+```bash
+cat test.txt  
+0    ATTTTATTNGAAATAGTAGTGGG
+0    CTCCCAAAATACTAAAATTATAA
+1    TTTTAGTTATTTANGAGGTTGAG
+1    CNTAATCTTAACTCACTACAACC
+2    TTATAATTTTAGTATTTTGGGAG
+2    CATATTAACCAAACTAATCTTAA
+3    GGTTAATATGGTGAAATTTAAT
+3    ACCTCAACCTCNTAAATAACTAA
+
+cat test.txt| paste - -                               
+0    ATTTTATTNGAAATAGTAGTGGG    0    CTCCCAAAATACTAAAATTATAA
+1    TTTTAGTTATTTANGAGGTTGAG    1    CNTAATCTTAACTCACTACAACC
+2    TTATAATTTTAGTATTTTGGGAG    2    CATATTAACCAAACTAATCTTAA
+3    GGTTAATATGGTGAAATTTAAT     3    ACCTCAACCTCNTAAATAACTAA
+```
+
+ORS: output record seperator in `awk`
+`var=condition?condition_if_true:condition_if_false is the ternary operator.`
+
+```bash
+cat test.txt| awk 'ORS=NR%2?"\t":"\n"'          
+
+0    ATTTTATTNGAAATAGTAGTGGG    0    CTCCCAAAATACTAAAATTATAA
+1    TTTTAGTTATTTANGAGGTTGAG    1    CNTAATCTTAACTCACTACAACC
+2    TTATAATTTTAGTATTTTGGGAG    2    CATATTAACCAAACTAATCTTAA
+3    GGTTAATATGGTGAAATTTAAT     3    ACCTCAACCTCNTAAATAACTAA
+
+```
