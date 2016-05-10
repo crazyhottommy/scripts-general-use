@@ -3,143 +3,189 @@
 05/21/2015.
 
 
+
+####  get the sequences length distribution form a fastq file using awk
+
 ```bash
-##1 get the sequences length distribution form a fastq file using awk
 zcat file.fastq.gz | awk 'NR%4 == 2 {lengths[length($0)]++} END {for (l in lengths) {print l, lengths[l]}}'  
+```
+#### Reverse complement a sequence (I use that a lot when I need to design primers)
 
-##2 Reverse complement a sequence (I use that a lot when I need to design primers)
-echo 'ATTGCTATGCTNNNT' | rev | tr 'ACTG' 'TGAC'  
+```
+echo 'ATTGCTATGCTNNNT' | rev | tr 'ACTG' 'TGAC'
+```
 
-##3 split a multifasta file into single ones with csplit:
+#### split a multifasta file into single ones with csplit:
+
+```bash
 csplit -z -q -n 4 -f sequence_ sequences.fasta /\>/ {*}  
+```
+#### Split a multi-FASTA file into individual FASTA files by awk
 
-## Split a multi-FASTA file into individual FASTA files by awk
+```bash
 awk '/^>/{s=++d".fa"} {print > s}' multi.fa
+```
 
-## linearize multiline fasta
+#### linearize multiline fasta
+
+```bash
 cat file.fasta | awk '/^>/{if(N>0) printf("\n"); ++N; printf("%s\t",$0);next;} {printf("%s",$0);}END{printf("\n");}'
-
 awk 'BEGIN{RS=">"}NR>1{sub("\n","\t"); gsub("\n",""); print RS$0}' file.fa
+```
+#### fastq2fasta
 
-## fastq2fasta
+```bash
 zcat file.fastq.gz | paste - - - - | perl -ane 'print ">$F[0]\n$F[2]\n";' | gzip -c > file.fasta.gz
+```
+####  bam2bed
 
-## bam2bed
+```bash
 samtools view file.bam | perl -F'\t' -ane '$strand=($F[1]&16)?"-":"+";$length=1;$tmp=$F[5];$tmp =~ s/(\d+)[MD]/$length+=$1/eg;print "$F[2]\t$F[3]\t".($F[3]+$length)."\t$F[0]\t0\t$strand\n";' > file.bed
+```
 
-##bam2wig
+####bam2wig
+
+```bash
 samtools mpileup -BQ0 file.sorted.bam | perl -pe '($c, $start, undef, $depth) = split;if ($c ne $lastC || $start != $lastStart+1) {print "fixedStep chrom=$c start=$start step=1 span=1\n";}$_ = $depth."\n";($lastC, $lastStart) = ($c, $start);' | gzip -c > file.wig.gz
+```
 
-## Number of reads in a fastq file
+#### Number of reads in a fastq file
+
+```bash
 cat file.fq | echo $((`wc -l`/4))
+```
+#### Single line fasta file to multi-line fasta of 60 characteres each line
 
-## Single line fasta file to multi-line fasta of 60 characteres each line
+```bash
 awk -v FS= '/^>/{print;next}{for (i=0;i<=NF/60;i++) {for (j=1;j<=60;j++) printf "%s", $(i*60 +j); print ""}}' file
 
 fold -w 60 file
+```
 
-## Sequence length of every entry in a multifasta file
+#### Sequence length of every entry in a multifasta file
+
+```bash
 awk '/^>/ {if (seqlen){print seqlen}; print ;seqlen=0;next; } { seqlen = seqlen +length($0)}END{print seqlen}' file.fa
+```
+#### Reproducible subsampling of a FASTQ file. srand() is the seed for the random number generator - keeps the subsampling the same when the script is run multiple times.  0.01 is the % of reads to output.
 
-## Reproducible subsampling of a FASTQ file. srand() is the seed for the random number generator - keeps the subsampling the same when the script is run multiple times.  0.01 is the % of reads to output.
+```bash
 cat file.fq | paste - - - - | awk 'BEGIN{srand(1234)}{if(rand() < 0.01) print $0}' | tr '\t' '\n' > out.fq
+```
+#### or look at the Hengli's Seqtk 
 
-## or look at the Hengli's Seqtk 
+#### Deinterleaving a FASTQ:
 
-## Deinterleaving a FASTQ:
+```bash
 cat file.fq | paste - - - - - - - - | tee >(cut -f1-4 | tr '\t'  
 '\n' > out1.fq) | cut -f5-8 | tr '\t' '\n' > out2.fq
+```
 
-## Using mpileup for a whole genome can take forever. So, handling each chromosome separately and parallely running them on several cores will speed up your pipeline. Using xargs you can easily realize it.  
-## Example usage of xargs (-P is the number of parallel processes started - don't use more than the number of cores you have available):
+#### Using mpileup for a whole genome can take forever. So, handling each chromosome separately and parallely running them on several cores will speed up your pipeline. Using xargs you can easily realize it.  
+#### Example usage of xargs (-P is the number of parallel processes started - don't use more than the number of cores you have available):
+
+```basg
 samtools view -H yourFile.bam | grep "\@SQ" | sed 's/^.*SN://g' | cut -f 1 | xargs -I {} -n 1 -P 24 sh -c "samtools mpileup -BQ0 -d 100000 -uf yourGenome.fa -r {} yourFile.bam | bcftools view -vcg - > tmp.{}.vcf"
+```
 
-## To merge the results afterwards, you might want to do something like this:
+#### To merge the results afterwards, you might want to do something like this:
 
+```bash
 samtools view -H yourFile.bam | grep "\@SQ" | sed 's/^.*SN://g' | cut -f 1 | perl -ane 'system("cat tmp.$F[0].bcf >> yourFile.vcf");'
+```
 
-##split large file by id/label/column
+####split large file by id/label/column
+
+```bash
 awk '{print >> $1; close($1)}' input_file
+```
 
-## sort vcf file with header
+#### sort vcf file with header
+
+```bash
 cat my.vcf | awk '$0~"^#" { print $0; next } { print $0 | "sort -k1,1V -k2,2n" }'
+```
+#### Rename a file, bash string manipulation
 
-## Rename a file, bash string manipulation
+```bash
 for file in *gz
 do zcat $file > ${file/bed.gz/bed}
+```
 
-## gnu sed print invisible characters
+#### gnu sed print invisible characters
+
+```bash
 cat my_file | sed -n 'l'
+cat -A
+```
 
-## or cat -v
+#### exit a dead ssh session
+`~.`
 
-## exit a dead ssh session
-~.
+#### copy large files, copy the from_dir directory inside the to_dir directory
 
-## copy large files, copy the from_dir directory inside the to_dir directory
+```bash
 rsync -av from_dir  to_dir
 
 ## copy every file inside the frm_dir to to_dir
 rsync -av from_dir/ to_dir
 
-## make directory using the current date
+##re-copy the files avoiding completed ones:
+
+rsync -avhP /from/dir /to/dir
+```
+
+#### make directory using the current date
+
+```bash
 mkdir $(date +%F)
+```
+#### all the folders' size in the current folder (GNU du)
 
-## all the folders' size in the current folder (GNU du)
+```bash
 du -h --max-depth=1
+```
 
-# this one is a bit different, try it and see the difference
-du -ch
+### this one is a bit different, try it and see the difference
+`du -ch`
 
-## the total size of current directory
-du -sh .
+#### the total size of current directory
+`du -sh .`
 
-## disk usage
-df -h
+#### disk usage
+`df -h`
 
-## the column names of the file, install csvkit https://csvkit.readthedocs.org/en/0.9.1/
-csvcut -n
+#### the column names of the file, install csvkit https://csvkit.readthedocs.org/en/0.9.1/
+`csvcut -n`
 
-## open top with human readable size in Mb, Gb. install htop for better visualization
-top -M
+#### open top with human readable size in Mb, Gb. install htop for better visualization
+`top -M`
 
-## how many memeory are used in Gb
-free -mg
+#### how many memeory are used in Gb
+`free -mg`
 
-## print out unique rows based on the first and second column
-awk '!a[$1,$2]++' input_file
+#### print out unique rows based on the first and second column
+`awk '!a[$1,$2]++' input_file`
 
-## do not wrap the lines using less
-less -S
+#### do not wrap the lines using less
+`less -S`
 
-## pretty output
+#### pretty output
+```bash
 fold -w 60
 cat file.txt | column -t | less -S
-
-## pass tab as delimiter http://unix.stackexchange.com/questions/46910/is-it-a-bug-for-join-with-t-t
--t $'\t'
-
-## awk with the first line printed always
-awk ' NR ==1 || ($10 > 1 && $11 > 0 && $18 > 0.001)'  input_file
-
-## delete blank lines with sed
-sed /^$/d
-
-## delete the last line
-sed $d
-
-## loop over all chromosomes
-for i in {1..22} X Y
-do
-echo $i
-done
-
-# or
-for i in {01..22} X Y
-do
-echo $i
-done
 ```
+#### pass tab as delimiter http://unix.stackexchange.com/questions/46910/is-it-a-bug-for-join-with-t-t
+`-t $'\t'`
+
+#### awk with the first line printed always
+`awk ' NR ==1 || ($10 > 1 && $11 > 0 && $18 > 0.001)'  input_file`
+
+#### delete blank lines with sed
+`sed /^$/d`
+
+#### delete the last line
+`sed $d`
 
 awk to join files based on several columns
 
@@ -214,6 +260,4 @@ cat test.txt| awk 'ORS=NR%2?"\t":"\n"'
 
 ```
 
-re-copy the files avoiding completed ones:
 
-`rsync -avhP /from/dir /to/dir`
