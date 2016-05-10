@@ -213,3 +213,7 @@ cat test.txt| awk 'ORS=NR%2?"\t":"\n"'
 3    GGTTAATATGGTGAAATTTAAT     3    ACCTCAACCTCNTAAATAACTAA
 
 ```
+
+re-copy the files avoiding completed ones:
+
+`rsync -avhP /from/dir /to/dir`
