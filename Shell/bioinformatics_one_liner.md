@@ -1,4 +1,5 @@
-### This is a markdown file edited by [MacDown](http://macdown.uranusjr.com/). I came across the bioinformatics one-liners on the [biostar](https://www.biostars.org/p/142545/) forum and gathered them here.
+### I came across the bioinformatics one-liners on the [biostar](https://www.biostars.org/p/142545/) forum and gathered them here.
+I also added some of my own tricks
 
 05/21/2015.
 
