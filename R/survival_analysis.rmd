@@ -1,0 +1,300 @@
+---
+title: "survival_ABC"
+author: "Ming Tang"
+date: "April 26, 2016"
+output: html_document
+---
+
+Start my first survival analysis.
+
+following blog post [here](http://justanotherdatablog.blogspot.com/2015/08/survival-analysis-1.html)  
+and [here](http://justanotherdatablog.blogspot.com/2015/08/survival-analysis-2.html)
+
+```{r}
+install.packages("OIsurv")
+install.packages("survsim")
+install.packages("broom")
+
+library("OIsurv")
+library("broom")
+library(ggplot2)
+library(dplyr)
+library(survsim)
+library(KMsurv)
+```
+
+Load example data from the KMsurv package.
+use `?tongue` to see the explaination of the dataset 
+
+type
+Tumor DNA profile (1=Aneuploid Tumor, 2=Diploid Tumor)
+
+time
+Time to death or on-study time, weeks
+
+delta
+Death indicator (0=alive, 1=dead)
+
+```{r}
+data(tongue)
+head(tongue)
+```
+
+
+Just check one type of tumor: 
+
+```{r}
+# Analyzing just one type of tumor (Aneuploid Tumor)
+tongue2<-tongue %>% filter(type == 1) 
+
+# Converting into a Surv object 
+tongue2_surv <- Surv(tongue2$time, tongue2$delta)
+
+# Getting KM estimator
+tongue2_survfit<- survfit(tongue2_surv ~ 1)
+plot(tongue2_survfit)
+
+```
+
+Graphically Comparing KM estimator for 2 tumors
+
+```{r}
+
+tongue_survfit<- survfit(Surv(time = time, event = delta) ~ type, data = tongue)
+plot(tongue_survfit, lty = 2:3, xlab = "weeks", ylab = "Proporation Survival")
+legend(100, .8, c("Aneuploid", "Diploid"), lty = 2:3) 
+```
+
+
+ggplot2 more beautiful plots:
+
+```{r}
+
+## tidy the data using broom package
+tongue_tidy<- tidy(tongue_survfit)
+
+
+mx<- max(tongue_tidy$n.censor)
+
+ggplot(tongue_tidy, aes(time, estimate, fill = strata)) + 
+  geom_line() +
+  geom_point(aes(shape = as.factor(n.censor)), size = 3) + 
+  scale_shape_manual(values=c(NA, 1:mx))+
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.25) + 
+  xlab("weeks") + 
+  ylab("Proportion Survival") + 
+        theme_gray(base_size =15)
+
+```
+
+We can compare the survival curves using various statistical tests using survdiff function. Apart from the usual formula and data arguments it takes rho is an argument. Setting different values of rho leads to different kinds of test. In general:  
+
+rho > 0 implies higher weight is given to initial part of the survival curve  
+rho < 0 implies higher weight is given to latter part of the survival curve Depending on the value of rho we can get different results as can be seen in the below example.
+
+```{r}
+# Statistical tests for comparison
+survdiff(Surv(time = time, event = delta) ~ type, data = tongue, rho = 0) # log-rank, default
+```
+
+with rho = 1 it is equivalent to the Peto & Peto modification of the Gehan-Wilcoxon test.
+
+```{r}
+survdiff(Surv(time = time, event = delta) ~ type, data = tongue, rho = 1) 
+```
+
+In my previous post, I went over basics of survival analysis, that included estimating Kaplan-Meier estimate for a given time-to-event data. In this post, I'm exploring on Cox's proportional hazards model for survival data. KM estimator helps in figuring out whether survival function estimates for different groups are same or different. While survival models like Cox's proportional hazards model help in finding relationship between different covariates to the survival function.
+
+Some basic notes about Cox model -
+
+It's a semi-parametric model, as the hazard function (risk per unit time) does not need to be specified.
+The proportional hazard condition states that the covariates are multiplicatively related to the hazard. (This assumption should always be checked after fitting a Cox model). 
+In case of categorical covariates, the hazard ratio (e.g. treatment vs no treatment) is constant and does not change over time. One can do away with this assumption by using extended Cox model which allows covariates to be dependent on time.
+The covariates are constant for each subject and do not vary over time.
+
+(There's one-to-one mapping between hazard function and the survival function i.e. a specific hazard function uniquely determines the survival function and vice versa. Simple mathematical details on this relationship can be found on this wikipedia page.)
+
+
+###  coxph model with cancer type as covariate.
+
+```{r}
+tongue_coxph<- coxph(Surv(time = time, event = delta) ~ as.factor(type), data = tongue)
+tongue_coxph_tidy<- tidy(tongue_coxph)
+tongue_coxph_tidy # equivalent of print()
+
+```
+
+The confidence interval for the coefficient estimate [-0.083293, 1.0160414] contains 0, implies the relationship is not significant.
+
+The likelihood ratio test against the null model (below) has p-value of 0.1020272 which again supports this.
+
+
+```{r}
+summary(tongue_coxph)
+
+```
+
+### A real example from TCGA SKCM data set
+
+go to [firehose](http://firebrowse.org/?cohort=SKCM&download_dialog=true) SKCM set, download clinical
+data by:
+
+`wget http://gdac.broadinstitute.org/runs/stddata__2016_01_28/data/SKCM/20160128/gdac.broadinstitute.org_SKCM.Merge_Clinical.Level_1.2016012800.0.0.tar.gz`
+
+unzip the folder, and the file `SKCM.merged_only_clinical_clin_format.txt` is what we are going to
+use.
+
+follow the biostars [post](https://www.biostars.org/p/153013/).
+
+Read in the data:
+
+```{r}
+# and read the Clinical file, in this case i transposed it to keep the clinical feature title as column name
+
+## use read_tsv function from readr can sometimes save you a lot of time parsing around...
+library(readr)
+
+clinical <-read_tsv("/Users/mtang1/projects/SKCM-TCGA-ChIP-seq/data/clinic_data/SKCM.merged_only_clinical_clin_format.txt")
+
+clinical <- as.data.frame(clinical)
+
+clinical[1:5,1:5]
+rownames(clinical)<- clinical[,1]
+clinical<- clinical[,-1]
+
+
+## transpose the data frame 
+install.packages("lsr")
+library(lsr)
+clinical<- tFrame(clinical)
+
+clinical$IDs <- toupper(clinical$patient.bcr_patient_barcode)
+
+```
+
+keep only columns we need:  days to death, new tumor event, last day contact to....
+
+```{r}
+ind_keep <- grep("days_to_new_tumor_event_after_initial_treatment",colnames(clinical))
+# this is a bit tedious, since there are numerous follow ups, let's collapse them together and keep the first value (the higher one) if more than one is available
+new_tum <- as.matrix(clinical[,ind_keep])
+new_tum_collapsed <- c()
+for (i in 1:dim(new_tum)[1]){
+  if(sum(is.na(new_tum[i,])) < dim(new_tum)[2]){
+    m <- max(new_tum[i,],na.rm=T)
+    new_tum_collapsed <- c(new_tum_collapsed,m)
+  } else {
+    new_tum_collapsed <- c(new_tum_collapsed,"NA")
+  }
+}
+
+# do the same to death
+ind_keep <- grep("days_to_death",colnames(clinical))
+death <- as.matrix(clinical[,ind_keep])
+death_collapsed <- c()
+for (i in 1:dim(death)[1]){
+  if(sum(is.na(death[i,])) < dim(death)[2]){
+    m <- max(death[i,],na.rm=T)
+    death_collapsed <- c(death_collapsed,m)
+  } else {
+    death_collapsed <- c(death_collapsed,"NA")
+  }
+}
+
+# and days last follow up here we take the most recent which is the max number
+ind_keep <- grep("days_to_last_followup",colnames(clinical))
+fl <- as.matrix(clinical[,ind_keep])
+fl_collapsed <- c()
+for (i in 1:dim(fl)[1]){
+  if(sum(is.na(fl[i,])) < dim(fl)[2]){
+    m <- max(fl[i,],na.rm=T)
+    fl_collapsed <- c(fl_collapsed,m)
+  } else {
+    fl_collapsed <- c(fl_collapsed,"NA")
+  }
+}
+
+# and put everything together
+all_clin <- data.frame(new_tum_collapsed,death_collapsed,fl_collapsed)
+colnames(all_clin) <- c("new_tumor_days", "death_days", "followUp_days")
+
+```
+
+
+```{r}
+# create vector with time to new tumor containing data to censor for new_tumor
+## somehow the numbers are converted to factors, convert them back
+all_clin$new_time <- c()
+for (i in 1:length(as.numeric(as.character(all_clin$new_tumor_days)))){
+  all_clin$new_time[i] <- ifelse(is.na(as.numeric(as.character(all_clin$new_tumor_days))[i]),
+                    as.numeric(as.character(all_clin$followUp_days))[i],as.numeric(as.character(all_clin$new_tumor_days))[i])
+}
+
+# create vector time to death containing values to censor for death
+all_clin$new_death <- c()
+for (i in 1:length(as.numeric(as.character(all_clin$death_days)))){
+  all_clin$new_death[i] <- ifelse(is.na(as.numeric(as.character(all_clin$death_days))[i]),
+                                 as.numeric(as.character(all_clin$followUp_days))[i],as.numeric(as.character(all_clin$death_days))[i])
+}
+
+```
+
+```{r}
+table(clinical$patient.vital_status)
+
+all_clin$death_event <- ifelse(clinical$patient.vital_status == "alive", 0,1)
+
+#finally add row.names to clinical
+rownames(all_clin) <- clinical$IDs
+```
+
+```{r}
+matched.H3K27ac.good.ids$TCGA.barcode 
+
+subset_clin<- all_clin[matched.H3K27ac.good.ids$TCGA.barcode,]
+
+subset_clin$subtype<- ifelse(rownames(subset_clin) %in% c("TCGA-D3-A1Q8", "TCGA-D3-A8GN", "TCGA-D3-A3C6", "TCGA-D3-A1Q1"), 1,2)
+
+```
+
+survival analysis 
+
+```{r}
+SKCM_survfit<- survfit(Surv(time = new_death, event = death_event) ~ subtype, data = subset_clin)
+SKCM_tidy<- tidy(SKCM_survfit)
+
+
+ggplot(SKCM_tidy, aes(time, estimate, fill= strata)) + 
+               geom_line(aes(color=strata)) +
+               geom_point(aes(shape = as.factor(n.censor)), size = 3) + 
+               scale_shape_manual(values=c(16,3), name="censor or not") +
+               geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.25) + 
+                xlab("days") + 
+                ylab("Proportion Survival") + 
+                annotate ("text", x= 6000, y=0.25,label="log-rank p =0.0834\n Gehan-Wilcoxon test p=0.0311") +
+               theme_gray(base_size =15)
+       
+plot(SKCM_survfit, lty = 2:3, xlab = "days", ylab = "Proporation Survival")
+legend(100, .8, c("Subgroup1", "Subgroup2"), lty = 2:3)   
+
+#https://github.com/kassambara/survminer
+library("survminer")
+
+ggsurvplot(SKCM_survfit, 
+           conf.int = TRUE, # Add confidence interval
+           pval = TRUE, 
+           ggtheme = theme_gray(base_size=15))
+
+ggsurvplot(SKCM_survfit, 
+           conf.int = TRUE, # Add confidence interval
+           pval = TRUE, 
+           )
+```
+
+
+```{r}
+
+survdiff(Surv(time = new_death, event = death_event) ~ subtype, data = subset_clin, rho = 0) 
+survdiff(Surv(time = new_death, event = death_event) ~ subtype, data = subset_clin, rho = 1) 
+
+```
