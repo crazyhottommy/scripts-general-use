@@ -261,7 +261,7 @@ cat test.txt| awk 'ORS=NR%2?"\t":"\n"'
 
 ```
 
-
+### awk
 We can also use the concept of a conditional operator in print statement of the form print CONDITION ? PRINT_IF_TRUE_TEXT : PRINT_IF_FALSE_TEXT. For example, in the code below, we identify sequences with lengths > 14:
 
 ```bash
@@ -278,4 +278,26 @@ blah_C2	ACTTTATATATT<=14
 blah_C3	ACTTATATATATATA>14
 blah_C4	ACTTATATATATATA>14
 blah_C5	ACTTTATATATT<=14
+
+awk 'NR==3{print "";next}{printf $1"\t"}{print $1}' data/test.tsv
+blah_C1	blah_C1
+blah_C2	blah_C2
+
+blah_C4	blah_C4
+blah_C5	blah_C5
+
+```
+You can also use getline to load the contents of another file in addition to the one you are reading, for example, in the statement given below, the while loop will load each line from test.tsv into k until no more lines are to be read:
+```bash
+awk 'BEGIN{while((getline k <"data/test.tsv")>0) print "BEGIN:"k}{print}' data/test.tsv
+BEGIN:blah_C1	ACTGTCTGTCACTGTGTTGTGATGTTGTGTGTG
+BEGIN:blah_C2	ACTTTATATATT
+BEGIN:blah_C3	ACTTATATATATATA
+BEGIN:blah_C4	ACTTATATATATATA
+BEGIN:blah_C5	ACTTTATATATT
+blah_C1	ACTGTCTGTCACTGTGTTGTGATGTTGTGTGTG
+blah_C2	ACTTTATATATT
+blah_C3	ACTTATATATATATA
+blah_C4	ACTTATATATATATA
+blah_C5	ACTTTATATATT
 ```
