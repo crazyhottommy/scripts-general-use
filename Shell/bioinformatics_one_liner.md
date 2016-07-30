@@ -262,3 +262,20 @@ cat test.txt| awk 'ORS=NR%2?"\t":"\n"'
 ```
 
 
+We can also use the concept of a conditional operator in print statement of the form print CONDITION ? PRINT_IF_TRUE_TEXT : PRINT_IF_FALSE_TEXT. For example, in the code below, we identify sequences with lengths > 14:
+
+```bash
+cat data/test.tsv
+blah_C1	ACTGTCTGTCACTGTGTTGTGATGTTGTGTGTG
+blah_C2	ACTTTATATATT
+blah_C3	ACTTATATATATATA
+blah_C4	ACTTATATATATATA
+blah_C5	ACTTTATATATT	
+
+awk '{print (length($2)>14) ? $0">14" : $0"<=14";}' data/test.tsv
+blah_C1	ACTGTCTGTCACTGTGTTGTGATGTTGTGTGTG>14
+blah_C2	ACTTTATATATT<=14
+blah_C3	ACTTATATATATATA>14
+blah_C4	ACTTATATATATATA>14
+blah_C5	ACTTTATATATT<=14
+```
