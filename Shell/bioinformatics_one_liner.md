@@ -261,7 +261,7 @@ cat test.txt| awk 'ORS=NR%2?"\t":"\n"'
 
 ```
 
-### awk
+#### awk
 We can also use the concept of a conditional operator in print statement of the form print CONDITION ? PRINT_IF_TRUE_TEXT : PRINT_IF_FALSE_TEXT. For example, in the code below, we identify sequences with lengths > 14:
 
 ```bash
@@ -300,4 +300,16 @@ blah_C2	ACTTTATATATT
 blah_C3	ACTTATATATATATA
 blah_C4	ACTTATATATATATA
 blah_C5	ACTTTATATATT
+```
+#### merge multiple fasta sequences in two files into a single file line by line
+see [post](https://www.biostars.org/p/204336/#204380)  
+
+`linearize.awk:`  
+
+```bash
+/^>/ {printf("%s%s\t",(N>0?"\n":""),$0);N++;next;} {printf("%s",$0);} END {printf("\n");}
+```
+
+```bash
+paste <(awk -f linearize.awk file1.fa ) <(awk -f linearize.awk file2.fa  )| tr "\t" "\n"
 ```
