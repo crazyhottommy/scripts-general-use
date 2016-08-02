@@ -313,3 +313,15 @@ see [post](https://www.biostars.org/p/204336/#204380)
 ```bash
 paste <(awk -f linearize.awk file1.fa ) <(awk -f linearize.awk file2.fa  )| tr "\t" "\n"
 ```
+
+### grep fastq reads containing a pattern but maintain the fastq format
+
+```bash
+grep -A 2 -B 1 'AAGTTGATAACGGACTAGCCTTATTTT' file.fq | sed '/^--$/d' > out.fq
+
+# or
+zcat reads.fq.gz \
+| paste - - - - \
+| awk -v FS="\t" -v OFS="\n" '$2 ~ "AAGTTGATAACGGACTAGCCTTATTTT" {print $1, $2, $3, $4}' \
+| gzip > filtered.fq.gz
+```
