@@ -330,6 +330,6 @@ zcat reads.fq.gz \
 ```bash
 cat file.tsv | head -1 | tr "\t" "\n" | wc -l  
 csvcut -n -t  file.tsv (from csvkit)
-awk '{print NF; exit}'
+awk '{print NF; exit}' file.tsv
 awk -F "\t" 'NR == 1 {print NF}' file.tsv
 ```
