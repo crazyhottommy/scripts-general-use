@@ -314,7 +314,7 @@ see [post](https://www.biostars.org/p/204336/#204380)
 paste <(awk -f linearize.awk file1.fa ) <(awk -f linearize.awk file2.fa  )| tr "\t" "\n"
 ```
 
-### grep fastq reads containing a pattern but maintain the fastq format
+#### grep fastq reads containing a pattern but maintain the fastq format
 
 ```bash
 grep -A 2 -B 1 'AAGTTGATAACGGACTAGCCTTATTTT' file.fq | sed '/^--$/d' > out.fq
@@ -324,4 +324,11 @@ zcat reads.fq.gz \
 | paste - - - - \
 | awk -v FS="\t" -v OFS="\n" '$2 ~ "AAGTTGATAACGGACTAGCCTTATTTT" {print $1, $2, $3, $4}' \
 | gzip > filtered.fq.gz
+```
+
+#### count how many columns of a tsv files: 
+```bash
+cat file.tsv | head -1 | tr "\t" "\n" | wc -l  
+csvcut -n -t  file.tsv (from csvkit)
+awk -F "\t" 'NR == 1 {print NF}' file.tsv
 ```
