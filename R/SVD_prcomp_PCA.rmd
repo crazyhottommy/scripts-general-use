@@ -1,0 +1,147 @@
+---
+title: "PCA-in-action"
+author: "Ming Tang"
+date: "December 20, 2015"
+output: html_document
+---
+
+### PCA in practice.
+
+Principle Component Analysis(PCA) is a very important skill for dimention reduction to analyze high-dimentional data. High-dimentional data are data with features (p) a lot more than observations (n). This types of data are very commonly generated from high-throuput sequencing experiments. For example, an RNA-seq or microarry experiment measures expression of tens of thousands of genes for only 8 samples (4 controls and 4 treatments).
+
+Let's use a microarray data for demonstration. One thing to note is that in linear algebra, a matrix is coded as n (rows are observations) X p (columns are features).However, in the microarray/RNA-seq case, the matrix is represented as p (rows are features/genes) X n (columns are observations/samples). That's why we need to transpose the matrix before feeding the matrix to `prcomp` or `SVD`.
+
+```{r}
+library(ISLR)
+
+# transpose the data
+ncidat<- t(NCI60$data)
+colnames(ncidat)<- NCI60$labs
+
+dim(ncidat)
+
+## it is a data matrix with 64 columns (different tissues) and 6830 rows (genes)
+ncidat[1:6,1:6]
+```
+
+### Use `prcomp`
+The default R package stats comes with function `prcomp()` to perform principal component analysis. This means that we don’t need to install anything (although there are other options using external packages). 
+
+We take the transpose of `ncidat` because **prcomp assumes: units/samples in row and features (genes) in columns.**
+
+```{r}
+
+## please look at the help page to see the meanings of  center and scale. parameters.
+## center and scale can affect the result a lot. Usually we center the data.
+
+pca_prcomp<- prcomp(t(ncidat), center = TRUE, scale. = FALSE)
+
+```
+
+How much variantion is explained by each component:
+
+```{r}
+plot(pca_prcomp)
+summary(pca_prcomp)
+
+pca_prcomp$sdev
+
+## variance explained by each PC cumulatively
+cumsum(pca_prcomp$sdev^2)/sum(pca_prcomp$sdev^2)
+```
+
+what's in the prca_prcomp object
+
+```{r}
+names(pca_prcomp)
+
+## the first two PCs for the first 6 tissues
+head(pca_prcomp$x[,1:2])
+
+PC1_and_PC2<- data.frame(PC1=pca_prcomp$x[,1], PC2= pca_prcomp$x[,2], type = rownames(pca_prcomp$x))
+
+## plot PCA plot
+library(ggplot2)
+ggplot(PC1_and_PC2, aes(x=PC1, y=PC2, col=type)) + geom_point() + geom_text(aes(label = type), hjust=0, vjust=0)
+
+```
+
+### Use singluar value decomposition
+
+in a svd analysis, a matrix n x p matrix X is decomposed by `X = U*D*V`:
+1.U is an m×n orthogonal matrix.
+2.V is an n×n orthogonal matrix.
+3.D is an n×n diagonal matrix.
+
+PCs: **Z = XV or Z = UD (U are un-scaled PCs)**
+
+Some facts of PCA:
+
+**k th column of Z, Z(k), is the k th PC.(the k th pattern)**
+
+PC loadings: V
+k th column of V, V(k) is the k th PC loading (feature weights). aka. **the k th column of V encodes the associated k th pattern in feature space.**
+
+PC loadings: U
+k th column of U, U(k) is the k th PC loading (observation weights). aka. **the k th column of U encodes the associated k th pattern in observation space.**
+
+Diagnal matrix: D
+diagnals in D: **d(k) gives the strength of the k th pattern.**
+
+Variance explained by k th PC: d(k)^2
+Total variance of the data: sum(d(k1)^2 + d(k2)^2 + …..d(k)^2+….)
+
+proportion of variane explained by k th PC: d(k)^2 / sum(d(k1)^2 + d(k2)^2 + …..d(k)^2+….)
+
+
+```{r}
+X<- t(scale(t(ncidat),center=TRUE,scale=FALSE))
+# we transpose X again for svd
+# usually there is no need to transpose the matrix and then transpose it back, but svd was written that rows are observations and columns are 
+# features.however, most genomic data represent observations (e.g. samples) in columns and features (e.g. genes) in columns.
+
+sv<- svd(t(X))
+U<- sv$u
+V<- sv$v
+D<- sv$d
+
+
+## U are un-scaled PC, Z is scaled
+Z<- t(X)%*%V
+
+# plot PC1 vs PC2
+
+pc_dat<- data.frame(type = rownames(Z), PC1 = Z[,1], PC2= Z[,2])
+ggplot(pc_dat,aes(x=PC1, y=PC2, col=type)) + geom_point() + geom_text(aes(label = type), hjust=0, vjust=0)
+```
+
+We get the same results as from the `prcomp` function.  
+
+
+### Variance explained for each PC
+
+```{r}
+varex = 0
+cumvar = 0
+denom = sum(D^2)
+for(i in 1:64){
+  varex[i] = D[i]^2/denom
+  cumvar[i] = sum(D[1:i]^2)/denom
+}
+
+## variance explained by each PC cumulatively
+cumvar
+
+```
+
+It is the same as the result of `cumsum(pca_prcomp$sdev^2)/sum(pca_prcomp$sdev^2)` above.
+
+
+Screeplot
+
+```{r}
+par(mfrow=c(1,2))
+plot(1:64,varex,type="l",lwd=2,xlab="PC",ylab="% Variance Explained")
+plot(1:64,cumvar,type="l",lwd=2,xlab="PC",ylab="Cummulative Variance Explained")
+
+```
