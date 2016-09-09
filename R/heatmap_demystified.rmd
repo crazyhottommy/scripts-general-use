@@ -1,0 +1,368 @@
+---
+title: "heatmap demystified"
+author: "Ming Tang"
+date: "August 17, 2016"
+output: html_document
+---
+
+In many Genomic paper, you will see heatmaps. Heatmaps is of no mystery. It is a way to visualize the data a.k.a. using colors to represent values. However one really needs to understand the details of heatmaps. I recommend you to read [Points of view: Mapping quantitative data to color](http://www.nature.com/nmeth/journal/v9/n8/full/nmeth.2134.html) and [Points of view: Heat maps](http://www.nature.com/nmeth/journal/v9/n3/full/nmeth.1902.html) from a series of articles from Nature Methods.
+
+Usually one has a matrix and then plot the matrix using functions such as [`heatmap.2`](https://cran.r-project.org/web/packages/gplots/index.html), [`pheatmap`](https://cran.r-project.org/web/packages/pheatmap/index.html) or [`Heatmap`](https://github.com/jokergoo/ComplexHeatmap).  
+
+I will start with a very simple using case for heatmap. We have sequenced 20 samples and identified mutations in 10 genes. some samples have the mutation in this gene, some samples do not have it. In this case, it will be a simple 0 or 1 to represent each data point. I am going to use `ggplot2` for this purpose, although the base R function `rect` can also draw rectangles.
+
+Let's simulate the data.
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+set.seed(1)
+# repeat the sampling 
+mut<- replicate(20, sample(c(0,1), 10, replace=TRUE))
+mut<- as.data.frame(mut)
+colnames(mut)<- paste0("sample", 1:20)
+mut<- mut %>% mutate(gene=paste0("gene", 1:10))
+head(mut)
+```
+
+
+most of my codes follow a post [Making Faceted Heatmaps with ggplot2](https://rud.is/projects/facetedheatmaps.html)
+
+Tidy the data to the long format.
+```{r}
+mut.tidy<- mut %>% tidyr::gather(sample, mutated, 1:20)
+
+## change the levels for gene names and sample names so it goes 1,2,3,4... rather than 1, 10...
+mut.tidy$gene<- factor(mut.tidy$gene, levels = paste0("gene", 1:10))
+mut.tidy$sample<- factor(mut.tidy$sample, levels = paste0("sample", 1:20))
+
+```
+
+when fill the tiles with color, in this case, it is 0 or 1 discrete value.
+R thinks `mutated` is a numeric continuous value, change it to factor.
+
+```{r}
+mut.tidy$mutated<- factor(mut.tidy$mutated)
+
+## use a white border of size 0.5 unit to separate the tiles
+gg<- ggplot(mut.tidy, aes(x=sample, y=gene, fill=mutated)) + geom_tile(color="white", size=0.5)
+
+```
+
+
+```{r}
+library(RColorBrewer) ## better color schema
+
+## check all the color pallete and choose one
+display.brewer.all()
+```
+
+mutated will have color red, unmutated have color blue.
+```{r}
+gg<- gg + scale_fill_brewer(palette = "Set1", direction = -1)
+
+```
+
+`geom_tile()` draws rectangles, add `coord_equal` to draw squres.
+```{r}
+gg<- gg + coord_equal()
+## add title
+
+gg<- gg + labs(x=NULL, y=NULL, title="mutation spectrum of 20 breast cancers")
+
+library(ggthemes)
+##starting with a base theme of theme_tufte() from the ggthemes package. It removes alot of chart junk without having to do it manually.
+gg <- gg + theme_tufte(base_family="Helvetica")
+
+#We don’t want any tick marks on the axes and I want the text to be slightly smaller than the default.
+
+gg <- gg + theme(axis.ticks=element_blank())
+gg <- gg + theme(axis.text.x=element_text(angle = 45, hjust = 1))
+gg
+
+```
+
+If you want to mannually fill the color, you can use `scale_fill_manual`, and check 
+http://colorbrewer2.org/ to get the HEX representation of the color.
+
+
+```{r}
+
+ggplot(mut.tidy, aes(x=sample, y=gene, fill=mutated)) + geom_tile(color="white", size=0.5) +
+         coord_equal() +
+        labs(x=NULL, y=NULL, title="mutation spectrum of 20 breast cancers") +
+        theme_tufte(base_family="Helvetica") +
+        scale_fill_manual(values = c("#7570b3", "#1b9e77")) +
+        theme(axis.ticks=element_blank()) + 
+        theme(axis.text.x=element_text(angle = 45, hjust = 1))
+      
+
+ggplot(mut.tidy, aes(x=sample, y=gene, fill=mutated)) + geom_tile(color="white", width= 0.5, size=0.5) +
+         coord_equal() +
+        labs(x=NULL, y=NULL, title="mutation spectrum of 20 breast cancers") +
+        theme_tufte(base_family="Helvetica") +
+        scale_fill_manual(values = c("gray", "red")) +
+        theme(axis.ticks=element_blank()) + 
+        theme(axis.text.x=element_text(angle = 45, hjust = 1))    
+```
+
+Note that in a real genomic experiment, thousands of genes will be assayed, and one can use tools such as [`CoMET`](https://github.com/raphael-group/comet) to find the mutual exclusive mutations and plot as I just did. There is a so called [oncoprint](https://bioconductor.org/packages/release/bioc/vignettes/ComplexHeatmap/inst/doc/s8.oncoprint.html) in many papers and essentially they are doing the same thing as I did here, but adding many details. see one example from `ComplexHeatmap`:
+
+
+In this example, I showed an example of using heatmap to represent discrete values (yes or no mutation), in my following post, I will post how to use heatmap to represent continuous values and do clustering on rows and columns to find patterns (unsupervised clustering). `ggplot2` it self does not have clustering built-in. We will have to use the functions I mentioned in the begining of this blog. There are three main points I will stress on plotting a bi-clustered heatmap:
+
+1. scale your data (center/standardize your data or not).
+2. range of the data and color mapping.
+3. clustering. (which distance measure and linkage method to use).
+
+TO BE CONTINUED...
+
+
+### Using heatmap to represent continuous values.
+
+In my last blog post, I showed an example to use heatmap to repreent discrete values.
+I am going to continue the theme to introduce heatmap to represent continuous values. 
+As I mentioned before, I will focus on three main points:
+
+1. Whether or not scale your data (center/standardize your data or not).
+2. Make sure you know therange of the data and do reasonable color mapping.
+3. How to perform the clustering. (which distance measure and linkage method to use).
+
+In order to make the example reproducible and interesting to biologist, I am going to use an RNAseq data set downloaded by the `recount` package. The data contains expression levels on 6830 genes from 64 cancer cell lines. Please read this Nature biotechnology paper:[Low-coverage single-cell mRNA sequencing reveals cellular heterogeneity and activated signaling pathways in developing cerebral cortex](http://www.nature.com/nbt/journal/v32/n10/full/nbt.2967.html). I will try to replicate the figures geneated in the paper.
+
+```{r}
+#source("https://bioconductor.org/biocLite.R")
+
+## use development branch of bioc
+# useDevel()
+#biocLite("recount")
+library(recount)
+library(dplyr)
+
+## if you go to the paper you can find the project name
+project = 'SRP041736'
+
+## download the R
+download_study(project)
+
+## load the data
+load(file.path(project, 'rse_gene.Rdata'))
+
+#We can explore a bit this RangedSummarizedExperiment 
+rse_gene
+
+colData(rse_gene) %>% head()
+
+## At the gene level, the row data includes the gene ENTREZ ids, the gene
+## symbols and the sum of the reduced exons widths, which can be used for 
+## taking into account the gene length.
+rowData(rse_gene)
+
+# browse_study(project)
+```
+
+It turns out that the metadata returned by `recount` are many NAs. I have to go to [SRA run selector](http://trace.ncbi.nlm.nih.gov/Traces/study/) to find the metadata. great thanks to @Ayush.
+search `SRP041736` in the search box, and it will [return all the runs](http://trace.ncbi.nlm.nih.gov/Traces/study/?acc=SRP041736&go=go) for the project, and I downloaded the `RunInfo Table`.
+
+[SRAdb](http://www.bioconductor.org/packages/release/bioc/html/SRAdb.html) bioconductor package maybe able to search and download the metadata programmatically.
+
+Aso check [sra-search](https://github.com/ncbi/ngs-tools) from NCBI.
+
+read in the metadata downloaded.
+
+```{r}
+library(readr)
+sra.runs<- read_tsv("~/Downloads/SraRunTable.txt")
+
+## much more info I need!
+head(sra.runs)
+View(sra.runs)
+```
+
+
+The function scale_counts() helps you scale them in a way that is tailored to `Rail-RNA` output.
+```{r}
+## Scale counts by taking into account the total coverage per sample
+rse <- scale_counts(rse_gene)
+
+## check the count table
+
+assay(rse)[1:6, 1:20]
+```
+
+
+match the `sra.runs$Run_s` to the `colData(rse)$run`
+
+```{r}
+sra.runs$Run_s %in% colData(rse)$run %>% table()
+
+colData(rse)$run  %in% sra.runs$Run_s %>% table()
+
+# which runs are not avaiable in the count matrix?
+sra.runs$Run_s[! sra.runs$Run_s %in% colData(rse)$run]
+```
+
+```{r}
+
+## there should be two same samples, one is deep sequenced, the other is shallow sequenced (downsampled)
+colData(rse) %>% as.data.frame() %>% group_by(sample) %>% summarise(n=n()) %>% arrange(n) %>% head()
+sra.runs %>% dplyr::filter(Run_s == "SRR1274250") %>% select(SRA_Sample_s)
+
+sra.runs %>% dplyr::filter(Run_s == "SRR1274344") %>% select(SRA_Sample_s)
+
+colData(rse) %>% as.data.frame() %>% dplyr::filter(sample == "SRS603223")
+colData(rse) %>% as.data.frame() %>% dplyr::filter(sample == "SRS603270")
+
+```
+
+These two samples are shallow sequenced ones according to the `mapped_read_count` number above.
+select out the smaller one to be the shallow sequenced ones.
+
+```{r}
+
+shallow.run<- colData(rse) %>% as.data.frame() %>% group_by(sample) %>% slice(which.min(mapped_read_count)) %>% ungroup()
+boxplot(shallow.run$mapped_read_count)
+title(main = "number of mapped reads for the shallow sequenced samples")
+
+## merge the meta data
+shallow.run <- shallow.run %>% left_join(sra.runs, by= c("run" = "Run_s"))
+
+## summary of mapped_read_count in shallow ones. median of  ~0.2 million reads
+summary(shallow.run$mapped_read_count)
+
+shallow.runs<- shallow.run$run
+deep.run<- colData(rse) %>% as.data.frame() %>% dplyr::filter(! run %in% shallow.runs) %>% ungroup()
+boxplot(deep.run$mapped_read_count)
+min((deep.run$mapped_read_count))
+
+## merge the meta data
+deep.run <- deep.run %>% left_join(sra.runs, by = c("run" = "Run_s"))
+```
+
+The data are always messy, the cell line name is spread to different columns.
+I will use the `population_s` column
+regular expression to extract the first word until the space.
+```{r}
+shallow.run %>% mutate(cell_line = gsub("([^ ]+).+", "\\1", population_s)) %>% select(cell_line) %>% table()
+```
+
+The names start with `chip` are K562 cells if you check `cell_line_s` column. The one starts with `plate` is the bulk sample (100 cells for K562 cells).
+
+from the method session of the paper:  
+>Hierarchical clustering of the top 500 PCA genes across 301 cells was also
+performed in the Fluidigm SINGuLAR package. Genes are clustered on the
+basis of Pearson correlation. Samples are clustered on the basis of a Euclidian
+distance matrix with complete linkage. 
+
+excluding the samples start with `chip` and `plate`:  
+
+```{r}
+22 + 17 + 37 + 26 + 8 + 16 + 54 + 24 + 42 + 40 + 15
+```
+
+It is `301`, the same number of samples used in the paper, so I guess they excluded those k562 cells 
+
+```{r}
+shallow.run <- shallow.run %>% mutate(cell_line = gsub("([^ ]+).+", "\\1", population_s)) 
+shallow.run<- shallow.run %>% filter(! cell_line %in% c("chip", "plate"))
+```
+
+To reproduce figure 2C in the paper, I need to make a PCA plot.
+I will use `SVD` sigular value decomposition to accomplish that. I had a pretty detailed write-up for SVD [here](https://rpubs.com/crazyhottommy/PCA_MDS).
+Of course, one can use the functions `prcomp()` and `princomp()` from the built-in R stats package or `PCA()` from `FactoMineR` package. 
+
+
+```{r}
+
+assay(rse)[1:6, 1:6]
+
+## select out only the counts for shallow ones
+shallow.counts<- assay(rse)[, colnames(rse) %in% shallow.run$run]
+
+shallow.run.cell<- left_join(data.frame(run = colnames(shallow.counts)), shallow.run %>% select(run, cell_line))
+
+## use log2 count for PCA and center the data for each sample.
+X<- t(scale(t(log2(shallow.counts+1)),center=TRUE,scale=FALSE))
+sv<- svd(t(X))
+U<- sv$u
+V<- sv$v
+D<- sv$d
+Z<- t(X)%*%V
+
+cols<- as.numeric(as.factor(shallow.run.cell$cell_line))
+pc_dat<- data.frame(cell.line = shallow.run.cell$cell_line, PC1 = Z[,1], PC2 = Z[,2])
+
+library(ggplot2)
+library(ggthemes)
+ggplot(pc_dat, aes(x=PC1, y=PC2, col=cell.line)) + 
+        geom_point() + 
+        theme_bw() +
+        theme(panel.border = element_blank(), 
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(), 
+              axis.line.x = element_line(color="black", size = 0.6),
+              axis.line.y = element_line(color="black", size = 0.6))
+```
+
+Well, it is very similar to the original figure in the paper except the color and shape of the points.
+I select colors from http://www.color-hex.com/
+
+```{r}
+
+p<- ggplot(pc_dat, aes(x=PC1, y=PC2)) + 
+        geom_point(aes(color = cell.line, shape = cell.line)) + 
+        scale_colour_manual(values=c("#24cdd4","#9e379f","#6673b7","#9FD175", "#9FD175", "#9FD175", "#ea018d", "#0d060f", "#eede51", "#6673b7", "#9FD175")) +   
+        scale_shape_manual(values=c(19, 19, 4, 19, 8, 3,19,19,19,19, 4))+
+        theme_bw() +
+        theme(panel.border = element_blank(), 
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(), 
+              axis.line.x = element_line(color="black", size = 0.6),
+              axis.line.y = element_line(color="black", size = 0.6))
+
+p
+```
+
+Let's fix the legend a bit to mimic the original figure.
+
+```{r}
+
+p + guides(col = guide_legend(ncol=2)) + theme(legend.position = c(.9, .75))
+```
+
+It is still not quite the same as the original figure as the legend of cell types should be grouped together. I will leave it to you to `google` and change the order of the legend. I usually import the figure to [`inkscape`](https://inkscape.org/en/) to mannually change the positions and/or orders. You may also notice that the X and Y axis scales are different from the orignal paper, I guess it is because that the authors used `RSEM` to process the RNA-seq data and used `TPM` (rather than raw counts in my example) to plot PCA.
+
+Make sure you read this paper in Nature biotechnology: [How does gene expression clustering work?](http://www.nature.com/nbt/journal/v23/n12/full/nbt1205-1499.html)
+
+```{r}
+
+##change back 
+useDevel(FALSE)
+```
+
+
+Further readings:
+[Principal component analysis : the basics you should read - R software and data mining](http://www.sthda.com/english/wiki/principal-component-analysis-the-basics-you-should-read-r-software-and-data-mining#at_pco=smlwn-1.0&at_si=57d2cbcf1f40b7eb&at_ab=per-2&at_pos=0&at_tot=1)
+
+[Cluster Analysis in R - Unsupervised machine learning](http://www.sthda.com/english/wiki/cluster-analysis-in-r-unsupervised-machine-learning#at_pco=smlwn-1.0&at_si=57d2d28b5ef2c394&at_ab=per-2&at_pos=0&at_tot=1)
+
+[You probably don’t understand heatmaps by Mick Watson](http://www.opiniomics.org/you-probably-dont-understand-heatmaps/)  
+
+[Recreating a famous visualisation (using gplots by Mick Watson as well)](http://www.opiniomics.org/recreating-a-famous-visualisation/)
+
+[Recreating the vaccination heatmaps in R using ggplot2](https://benjaminlmoore.wordpress.com/2015/04/09/recreating-the-vaccination-heatmaps-in-r/)
+
+[Why do you look at the speck in your sister’s quilt plot and pay no attention to the plank in your own heat map?](https://liorpachter.wordpress.com/2014/01/19/why-do-you-look-at-the-speck-in-your-sisters-quilt-plot-and-pay-no-attention-to-the-plank-in-your-own-heat-map/) by Lior Patcher  
+
+posts on biostars: [understanding the clustering in heatmap](https://www.biostars.org/p/91978/)  
+
+[Making a heatmap with R by Dave Tang](http://davetang.org/muse/2010/12/06/making-a-heatmap-with-r/)  
+
+[Using RColorBrewer to colour your figures in R by R bloggers](https://www.r-bloggers.com/r-using-rcolorbrewer-to-colour-your-figures-in-r/)  
+
+[how to change heatmap2 color range in r](https://stat.ethz.ch/pipermail/bioconductor/2011-November/041866.html)  
+
+[Customizing gplots heatmap.2 - color range for heatmap and legend for RowSideColors](https://stat.ethz.ch/pipermail/bioconductor/2011-November/041866.html)  
+
+[map colour to values in heatmap](http://seqanswers.com/forums/showthread.php?p=114275&posted=1#post114275)
