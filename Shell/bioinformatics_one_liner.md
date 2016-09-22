@@ -365,3 +365,18 @@ MSTDVDAKTRSKERASIAAFYVGRNIFVTGGTGFLGKVLIEKLLRSCPDVGEIFILMRPKAGLSI
 MSTNVDAKARSKERASIAAFYVGRNIFVTGGTGFLGKVLIEKLLRSCPDVGEIFILMRPKAGLSI
 
 ```
+
+#### count how many columns in a tsv file
+
+```bash
+cat file.tsv | head -1 | tr "\t" "\n" | wc -l  
+
+##(from csvkit)
+csvcut -n -t file.
+
+## emulate csvcut -n -t
+less files.tsv | head -1| tr "\t" "\n" | nl
+
+awk -F "\t" 'NR == 1 {print NF}' file.tsv
+awk '{print NF; exit}'
+```
