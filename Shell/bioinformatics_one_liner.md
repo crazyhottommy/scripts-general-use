@@ -380,3 +380,13 @@ less files.tsv | head -1| tr "\t" "\n" | nl
 awk -F "\t" 'NR == 1 {print NF}' file.tsv
 awk '{print NF; exit}'
 ```
+#### change fasta header
+
+see https://www.biostars.org/p/53212/
+
+The fasta header is like `>7 dna:chromosome chromosome:GRCh37:7:1:159138663:1`
+convert to `>7`: 
+
+```bash
+cat Homo_sapiens_assembly19.fasta | gawk '/^>/ { b=gensub(" dna:.+", "", "g", $0); print b; next} {print}' > Homo_sapiens_assembly19_reheader.fasta
+```
