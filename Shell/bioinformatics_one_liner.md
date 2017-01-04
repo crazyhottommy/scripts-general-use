@@ -168,6 +168,9 @@ du -h --max-depth=1
 #### print out unique rows based on the first and second column
 `awk '!a[$1,$2]++' input_file`
 
+`sort -u -k1,2 file`
+It will sort based on unique first and second column
+
 #### do not wrap the lines using less
 `less -S`
 
