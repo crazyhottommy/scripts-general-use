@@ -76,7 +76,7 @@ The other ds are all zeros. (no variations after d(r)), that's why D is dropped 
 
 We can check it:  
 ```{r}
-# we transpose X again for svd
+# we transpose X again for svd ### You don't really have to transpose again for svd, do you ? 
 sv = svd(t(X))
 U = sv$u
 V = sv$v
