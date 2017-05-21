@@ -393,3 +393,8 @@ convert to `>7`:
 ```bash
 cat Homo_sapiens_assembly19.fasta | gawk '/^>/ { b=gensub(" dna:.+", "", "g", $0); print b; next} {print}' > Homo_sapiens_assembly19_reheader.fasta
 ```
+### mkdir and cd into that dir shortcut
+
+```bash
+mkdir blah && cd $_
+```
